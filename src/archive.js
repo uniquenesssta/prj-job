@@ -5,6 +5,7 @@ const { sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { enrichTask, publicUser, readComments, readDb, writeDb, writeJsonFile } = require("./storage");
 const { requireUser } = require("./auth");
+const { canArchiveTask } = require("./permissions");
 const {
   formatArchiveStamp,
   formatDate,
@@ -25,12 +26,12 @@ const crcTable = Array.from({ length: 256 }, (_, index) => {
 function handleArchiveDoneTasks(req, res) {
   const user = requireUser(req, res);
   if (!user) return;
+  const db = readDb();
+  const tasks = db.tasks.filter((task) => canArchiveTask(user, task));
   if (user.role !== "owner") {
     sendError(res, 403, "只有管理员可以归档");
     return;
   }
-  const db = readDb();
-  const tasks = db.tasks.filter((task) => task.status === "done" && !task.archivedAt);
   if (!tasks.length) {
     sendError(res, 400, "没有可归档的已完成任务");
     return;
@@ -47,14 +48,14 @@ function handleArchiveDoneTasks(req, res) {
 function handleArchiveOneTask(req, res, taskId) {
   const user = requireUser(req, res);
   if (!user) return;
-  if (user.role !== "owner") {
-    sendError(res, 403, "只有管理员可以归档任务");
-    return;
-  }
   const db = readDb();
   const task = db.tasks.find((item) => item.id === taskId);
   if (!task) {
     sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (user.role !== "owner") {
+    sendError(res, 403, "只有管理员可以归档任务");
     return;
   }
   if (task.status !== "done") {
@@ -63,6 +64,10 @@ function handleArchiveOneTask(req, res, taskId) {
   }
   if (task.archivedAt) {
     sendError(res, 400, "该任务已经归档");
+    return;
+  }
+  if (!canArchiveTask(user, task)) {
+    sendError(res, 403, "无权归档该任务");
     return;
   }
   try {
@@ -109,14 +114,24 @@ function createTaskArchive(db, tasks) {
     const taskDir = path.join(archivePath, "tasks", archiveTaskFolderNameV2(db, task));
     fs.mkdirSync(taskDir, { recursive: true });
     fs.mkdirSync(path.join(taskDir, "files"), { recursive: true });
+    fs.mkdirSync(path.join(taskDir, "remark-images"), { recursive: true });
     writeJsonFile(path.join(taskDir, "任务信息.json"), { ...enriched, comments: undefined });
     writeCommentTxt(path.join(taskDir, "留言.txt"), enriched.comments || []);
+    writeRemarkTxt(path.join(taskDir, "个人备注.txt"), enriched.remarkRecords || []);
 
     for (const file of enriched.attachments || []) {
       const source = storedFilePath(file);
       if (!fs.existsSync(source)) continue;
       const target = path.join(taskDir, "files", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
       fs.copyFileSync(source, uniquePath(target));
+    }
+    for (const remark of enriched.remarkRecords || []) {
+      for (const file of remark.images || []) {
+        const source = storedFilePath(file);
+        if (!fs.existsSync(source)) continue;
+        const target = path.join(taskDir, "remark-images", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
+        fs.copyFileSync(source, uniquePath(target));
+      }
     }
   }
 
@@ -149,6 +164,15 @@ function writeCommentTxt(filePath, comments) {
   const lines = comments.map((comment) => {
     const author = `${comment.authorName || "未知"}${comment.authorRole ? `（${roleName(comment.authorRole)}）` : ""}`;
     return `[${formatDateTimeText(comment.createdAt)}] ${author}: ${comment.text}`;
+  });
+  fs.writeFileSync(filePath, lines.join("\r\n"), "utf8");
+}
+
+function writeRemarkTxt(filePath, records) {
+  const lines = records.map((record) => {
+    const imageCount = (record.images || []).length;
+    const suffix = imageCount ? `（图片 ${imageCount} 张）` : "";
+    return `[${formatDateTimeText(record.createdAt)}] ${record.authorName || "未知"}: ${record.text || ""}${suffix}`;
   });
   fs.writeFileSync(filePath, lines.join("\r\n"), "utf8");
 }

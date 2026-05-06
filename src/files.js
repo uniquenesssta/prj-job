@@ -1,10 +1,11 @@
 const fs = require("fs");
 const path = require("path");
-const { UPLOAD_DIR } = require("./config");
+const { REMARK_IMAGE_DIR, UPLOAD_DIR } = require("./config");
 const { readBody, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { createId, enrichTask, readDb, writeDb } = require("./storage");
-const { canAccessTask, requireUser } = require("./auth");
+const { requireUser } = require("./auth");
+const { canDownloadTaskFile, canUploadToTask } = require("./permissions");
 const { enqueueUpload } = require("./upload-queue");
 
 async function handleUpload(req, res, taskId) {
@@ -16,7 +17,7 @@ async function handleUpload(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
-  if (!canAccessTask(user, task)) {
+  if (!canUploadToTask(user, task)) {
     sendError(res, 403, "无权上传到该任务");
     return;
   }
@@ -32,7 +33,7 @@ async function handleUpload(req, res, taskId) {
       sendError(res, 404, "任务不存在");
       return;
     }
-    if (!canAccessTask(user, nextTask)) {
+    if (!canUploadToTask(user, nextTask)) {
       sendError(res, 403, "无权上传到该任务");
       return;
     }
@@ -73,25 +74,38 @@ async function handleUpload(req, res, taskId) {
 }
 
 function parseMultipartFile(buffer, boundary) {
+  return parseMultipartParts(buffer, boundary).files.find((file) => file.name === "file") || null;
+}
+
+function parseMultipartParts(buffer, boundary) {
+  const fields = {};
+  const files = [];
   let start = buffer.indexOf(Buffer.from(`--${boundary}`));
   while (start !== -1) {
     const headerStart = start + boundary.length + 4;
     const headerEnd = buffer.indexOf(Buffer.from("\r\n\r\n"), headerStart);
-    if (headerEnd === -1) return null;
+    if (headerEnd === -1) return { fields, files };
     const header = buffer.slice(headerStart, headerEnd).toString("utf8");
     const dataStart = headerEnd + 4;
     const nextBoundary = buffer.indexOf(Buffer.from(`\r\n--${boundary}`), dataStart);
-    if (nextBoundary === -1) return null;
-    if (header.includes('name="file"')) {
-      return {
-        filename: header.match(/filename="([^"]*)"/)?.[1] || "upload.bin",
+    if (nextBoundary === -1) return { fields, files };
+    const disposition = header.match(/Content-Disposition:[^\r\n]+/i)?.[0] || "";
+    const name = disposition.match(/name="([^"]+)"/)?.[1] || "";
+    const filename = disposition.match(/filename="([^"]*)"/)?.[1];
+    const data = buffer.slice(dataStart, nextBoundary);
+    if (filename !== undefined) {
+      files.push({
+        name,
+        filename: filename || "upload.bin",
         contentType: header.match(/Content-Type:\s*([^\r\n]+)/i)?.[1] || "application/octet-stream",
-        data: buffer.slice(dataStart, nextBoundary),
-      };
+        data,
+      });
+    } else if (name) {
+      fields[name] = data.toString("utf8");
     }
-    start = buffer.indexOf(Buffer.from(`--${boundary}`), nextBoundary + boundary.length);
+    start = buffer.indexOf(Buffer.from(`--${boundary}`), nextBoundary + 2);
   }
-  return null;
+  return { fields, files };
 }
 
 function sanitizeFilename(filename) {
@@ -124,10 +138,19 @@ function taskUploadFolderName(db, task, suffix) {
 }
 
 function storedFilePath(file) {
-  return path.join(UPLOAD_DIR, file.relativePath || file.storedName);
+  const baseDir = file.storageArea === "remarkImage" ? REMARK_IMAGE_DIR : UPLOAD_DIR;
+  return path.join(baseDir, file.relativePath || file.storedName);
 }
 
 function handleDownload(req, res, fileId) {
+  return streamFile(req, res, fileId, "attachment");
+}
+
+function handleInlineFile(req, res, fileId) {
+  return streamFile(req, res, fileId, "inline");
+}
+
+function streamFile(req, res, fileId, dispositionType) {
   const user = requireUser(req, res);
   if (!user) return;
   const db = readDb();
@@ -137,7 +160,7 @@ function handleDownload(req, res, fileId) {
     return;
   }
   const task = db.tasks.find((item) => item.id === file.taskId);
-  if (!task || !canAccessTask(user, task)) {
+  if (!task || !canDownloadTaskFile(user, task, file)) {
     sendError(res, 403, "无权下载该文件");
     return;
   }
@@ -149,7 +172,8 @@ function handleDownload(req, res, fileId) {
   res.writeHead(200, {
     "Content-Type": file.mimeType || "application/octet-stream",
     "Content-Length": fs.statSync(filePath).size,
-    "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    "Content-Disposition": `${dispositionType}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    "Cache-Control": "no-store",
   });
   fs.createReadStream(filePath).pipe(res);
 }
@@ -171,9 +195,12 @@ module.exports = {
   formatArchiveStamp,
   formatDate,
   handleDownload,
+  handleInlineFile,
   handleUpload,
+  parseMultipartParts,
   sanitizeFilename,
   sanitizeFolderPart,
   storedFilePath,
+  taskUploadFolderName,
   uniquePath,
 };

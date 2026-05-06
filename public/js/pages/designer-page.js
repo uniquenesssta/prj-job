@@ -34,6 +34,7 @@ function bindDesignerPageEvents() {
     if (!button) return;
     state.designerView = button.dataset.designerView;
     state.selectedTaskId = null;
+    state.pendingRemarkImages = [];
     render();
   });
 

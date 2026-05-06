@@ -1,6 +1,7 @@
 function renderDetail() {
   const task = state.tasks.find((item) => item.id === state.selectedTaskId);
   if (!task) return '<div class="empty">选择一个任务查看详情</div>';
+  const isPersonalDesignerTask = state.user.role === "designer" && task.visibility === "private";
   return `
     <div class="detail-stack">
       <section class="detail-card detail-hero">
@@ -14,7 +15,7 @@ function renderDetail() {
         <p class="detail-desc">${escapeHtml(task.description || "暂无说明")}</p>
         ${renderArchiveControls(task)}
       </section>
-      <div class="detail-layout">
+      <div class="detail-layout ${isPersonalDesignerTask ? "solo-detail" : ""}">
         <section class="detail-card detail-main">
           <div class="section-head compact-head">
             <div>
@@ -24,10 +25,11 @@ function renderDetail() {
           </div>
           ${renderInlineInfo(task)}
         </section>
-        ${renderRemark(task)}
+        ${isPersonalDesignerTask ? "" : renderPublicComments(task)}
       </div>
       ${renderUploadForm()}
       ${renderFiles(task)}
+      ${isPersonalDesignerTask ? renderPersonalRemark(task) : ""}
     </div>
   `;
 }

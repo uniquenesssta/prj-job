@@ -1,17 +1,45 @@
 const fs = require("fs");
 const crypto = require("crypto");
-const { ARCHIVE_DIR, COMMENT_FILE, DATA_DIR, DB_FILE, UPLOAD_DIR } = require("./config");
+const {
+  LEGACY_COMMENT_FILE,
+  LEGACY_DB_FILE,
+} = require("./config");
+const {
+  clearCoreData,
+  ensureDatabase,
+  isDatabaseEmpty,
+  runInTransaction,
+} = require("./database");
+const { listComments, replaceComments } = require("./repositories/comments-repo");
+const { insertFiles, listFiles } = require("./repositories/files-repo");
+const { insertTasks, listTasks } = require("./repositories/tasks-repo");
+const { insertUsers, listUsers } = require("./repositories/users-repo");
 
 function ensureStorage() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-  if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-  if (!fs.existsSync(ARCHIVE_DIR)) fs.mkdirSync(ARCHIVE_DIR);
-  if (!fs.existsSync(COMMENT_FILE)) fs.writeFileSync(COMMENT_FILE, "[]", "utf8");
-  if (!fs.existsSync(DB_FILE)) {
-    writeDb(seedDb());
-    return;
+  const db = ensureDatabase();
+  if (isDatabaseEmpty(db)) {
+    writeDb(readLegacyDb() || seedDb());
+    writeComments(readLegacyComments());
   }
   migrateDb();
+}
+
+function readLegacyDb() {
+  if (!fs.existsSync(LEGACY_DB_FILE)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(LEGACY_DB_FILE, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readLegacyComments() {
+  if (!fs.existsSync(LEGACY_COMMENT_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(LEGACY_COMMENT_FILE, "utf8"));
+  } catch {
+    return [];
+  }
 }
 
 function seedDb() {
@@ -92,17 +120,6 @@ function migrateDb() {
   }
 
   const fallbackCreator = db.users.find((user) => user.role === "service")?.id || db.users[0]?.id;
-  if (Array.isArray(db.comments) && db.comments.length) {
-    const existingComments = readComments();
-    const existingIds = new Set(existingComments.map((comment) => comment.id));
-    const merged = existingComments.concat(db.comments.filter((comment) => !existingIds.has(comment.id)));
-    writeComments(merged);
-    delete db.comments;
-    changed = true;
-  } else if (Object.hasOwn(db, "comments")) {
-    delete db.comments;
-    changed = true;
-  }
   db.tasks.forEach((task) => {
     if (!task.creatorId) {
       task.creatorId = fallbackCreator;
@@ -116,6 +133,10 @@ function migrateDb() {
     }
     if (task.visibility === undefined) {
       task.visibility = "public";
+      changed = true;
+    }
+    if (!Array.isArray(task.remarkRecords)) {
+      task.remarkRecords = [];
       changed = true;
     }
     if (!Array.isArray(task.attachments)) {
@@ -133,6 +154,7 @@ function migrateDb() {
   });
 
   if (changed) writeDb(db);
+  if (comments.length) writeComments(comments);
 }
 
 function makeUser(id, username, name, role, password) {
@@ -158,24 +180,34 @@ function verifyPassword(password, stored) {
 }
 
 function readDb() {
-  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+  return {
+    users: listUsers(),
+    tasks: listTasks(),
+    files: listFiles(),
+  };
 }
 
-function writeDb(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
+function writeDb(data) {
+  const users = Array.isArray(data.users) ? data.users : [];
+  const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+  const files = Array.isArray(data.files) ? data.files : [];
+
+  runInTransaction((db) => {
+    clearCoreData(db);
+    insertUsers(users, db);
+    insertTasks(tasks, db);
+    insertFiles(files, db);
+  });
 }
 
 function readComments() {
-  if (!fs.existsSync(COMMENT_FILE)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(COMMENT_FILE, "utf8"));
-  } catch {
-    return [];
-  }
+  return listComments();
 }
 
 function writeComments(comments) {
-  fs.writeFileSync(COMMENT_FILE, JSON.stringify(comments, null, 2), "utf8");
+  runInTransaction((db) => {
+    replaceComments(comments, db);
+  });
 }
 
 function createId(prefix) {
@@ -219,6 +251,17 @@ function enrichTask(db, task, comments = readComments()) {
           authorRole: author ? author.role : "unknown",
         };
       }),
+    remarkRecords: (task.remarkRecords || []).map((record) => {
+      const author = db.users.find((user) => user.id === record.authorId);
+      return {
+        ...record,
+        authorName: author ? author.name : "未知",
+        authorRole: author ? author.role : "unknown",
+        images: (record.imageFileIds || [])
+          .map((fileId) => db.files.find((file) => file.id === fileId))
+          .filter(Boolean),
+      };
+    }),
   };
 }
 

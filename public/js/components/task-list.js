@@ -9,6 +9,7 @@ function renderTaskList(tasks) {
 }
 
 function renderTaskCard(task) {
+  const preview = taskPreviewMessage(task);
   return `
     <article class="task-card priority-${task.priority} ${task.id === state.selectedTaskId ? "selected" : ""}">
       <button class="task-button" type="button" data-task-id="${task.id}">
@@ -26,7 +27,19 @@ function renderTaskCard(task) {
         <span>${task.dueDate ? `截止：${task.dueDate}` : "未设截止"}</span>
         ${task.orderNo ? `<span>订单：${escapeHtml(task.orderNo)}</span>` : ""}
       </div>
-      ${task.remark ? `<div class="task-comment"><span>备注</span><p>${escapeHtml(task.remark)}</p></div>` : ""}
+      ${preview ? `<div class="task-comment"><span>${preview.label}</span><p>${escapeHtml(preview.text)}</p></div>` : ""}
     </article>
   `;
+}
+
+function taskPreviewMessage(task) {
+  if (task.visibility === "private") {
+    const records = (task.remarkRecords || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    const record = records.find((item) => item.text);
+    const text = record?.text || task.remark;
+    return text ? { label: "备注", text } : null;
+  }
+  const comments = (task.comments || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const comment = comments.find((item) => item.text);
+  return comment ? { label: "最新留言", text: comment.text } : null;
 }

@@ -10,6 +10,7 @@ const {
   verifyPassword,
   writeDb,
 } = require("./storage");
+const { canManageUsers } = require("./permissions");
 
 const sessions = new Map();
 
@@ -31,15 +32,6 @@ function requireUser(req, res) {
     return null;
   }
   return user;
-}
-
-function canAccessTask(user, task) {
-  if (task.visibility === "private") return task.creatorId === user.id && task.assigneeId === user.id;
-  return user.role === "owner" || task.assigneeId === user.id || task.creatorId === user.id;
-}
-
-function canEditBrief(user, task) {
-  return user.role === "owner" || (user.role === "service" && task.creatorId === user.id) || (user.role === "designer" && task.visibility === "private" && task.creatorId === user.id);
 }
 
 async function handleLogin(req, res) {
@@ -84,7 +76,7 @@ function handleUsers(req, res) {
 async function handleCreateUser(req, res) {
   const user = requireUser(req, res);
   if (!user) return;
-  if (user.role !== "owner") {
+  if (!canManageUsers(user)) {
     sendError(res, 403, "只有管理员可以新增账号");
     return;
   }
@@ -112,7 +104,7 @@ async function handleCreateUser(req, res) {
 async function handleUpdateUser(req, res, userId) {
   const user = requireUser(req, res);
   if (!user) return;
-  if (user.role !== "owner") {
+  if (!canManageUsers(user)) {
     sendError(res, 403, "只有管理员可以修改账号");
     return;
   }
@@ -160,8 +152,6 @@ async function handleUpdateUser(req, res, userId) {
 }
 
 module.exports = {
-  canAccessTask,
-  canEditBrief,
   handleCreateUser,
   handleLogin,
   handleLogout,

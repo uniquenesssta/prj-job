@@ -8,8 +8,10 @@ const CONFIG_FILE = path.join(ROOT, "config", "config.json");
 const CONFIG = loadConfig();
 const DATA_DIR = resolvePath(CONFIG.dataDir, "data");
 const UPLOAD_DIR = resolvePath(CONFIG.uploadDir, path.join("data", "uploads"));
-const DB_FILE = path.join(DATA_DIR, "db.json");
-const COMMENT_FILE = path.join(DATA_DIR, "comments.json");
+const REMARK_IMAGE_DIR = resolvePath(CONFIG.remarkImageDir, path.join("data", "uploads", "remark-images"));
+const DB_FILE = path.join(DATA_DIR, "app.db");
+const LEGACY_DB_FILE = path.join(DATA_DIR, "db.json");
+const LEGACY_COMMENT_FILE = path.join(DATA_DIR, "comments.json");
 const ARCHIVE_DIR = resolvePath(CONFIG.archiveDir, path.join("data", "archives"));
 
 function loadConfig() {
@@ -29,13 +31,15 @@ function resolvePath(value, fallback) {
 
 module.exports = {
   ARCHIVE_DIR,
-  COMMENT_FILE,
   CONFIG,
   CONFIG_FILE,
   DATA_DIR,
   DB_FILE,
+  LEGACY_COMMENT_FILE,
+  LEGACY_DB_FILE,
   PORT,
   PUBLIC_DIR,
+  REMARK_IMAGE_DIR,
   ROOT,
   UPLOAD_DIR,
 };

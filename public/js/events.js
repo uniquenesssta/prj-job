@@ -75,6 +75,7 @@ function bindTaskPageEvents() {
     if (!button) return;
     state.selectedTaskId = button.dataset.taskId;
     state.briefEditOpen = false;
+    state.pendingRemarkImages = [];
     render();
   });
   bindDetailEvents();
@@ -127,17 +128,9 @@ function bindDetailEvents() {
     }
   });
 
-  document.querySelector("#remarkForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const button = event.currentTarget.querySelector("button");
-    button.disabled = true;
-    try {
-      await updateTask({ remark: form.get("remark") });
-    } finally {
-      button.disabled = false;
-    }
-  });
+  bindPublicCommentEvents();
+  bindPersonalRemarkEvents();
+  bindRemarkImageViewerEvents();
 }
 
 async function updateTask(body) {

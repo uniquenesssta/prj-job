@@ -12,6 +12,9 @@ const state = {
   events: null,
   briefEditOpen: false,
   personalTaskModalOpen: false,
+  pendingRemarkImages: [],
+  remarkImageViewer: null,
+  remarkImageZoom: 1,
 };
 
 const statusLabels = {

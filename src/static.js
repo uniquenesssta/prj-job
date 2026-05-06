@@ -31,7 +31,10 @@ function serveStatic(req, res, pathname) {
       sendError(res, 404, "页面不存在");
       return;
     }
-    res.writeHead(200, { "Content-Type": mimeTypes[path.extname(filePath).toLowerCase()] || "application/octet-stream" });
+    res.writeHead(200, {
+      "Content-Type": mimeTypes[path.extname(filePath).toLowerCase()] || "application/octet-stream",
+      "Cache-Control": "no-store",
+    });
     res.end(data);
   });
 }

@@ -8,7 +8,15 @@ const {
   readDb,
   writeDb,
 } = require("./storage");
-const { canAccessTask, canEditBrief, requireUser } = require("./auth");
+const { requireUser } = require("./auth");
+const {
+  canAccessTask,
+  canCreatePersonalTask,
+  canCreatePublicTask,
+  canEditTaskBrief,
+  canRestoreTask,
+  canUpdateTaskStatus,
+} = require("./permissions");
 
 function handleGetTasks(req, res) {
   const user = requireUser(req, res);
@@ -30,14 +38,14 @@ function handleGetTasks(req, res) {
 async function handleCreateTask(req, res) {
   const user = requireUser(req, res);
   if (!user) return;
-  if (!["owner", "service", "designer"].includes(user.role)) {
+  const isPrivateDesignerTask = user.role === "designer";
+  if (isPrivateDesignerTask ? !canCreatePersonalTask(user) : !canCreatePublicTask(user)) {
     sendError(res, 403, "当前账号不能新建任务");
     return;
   }
   const body = await readJson(req);
   const db = readDb();
   const comments = readComments();
-  const isPrivateDesignerTask = user.role === "designer";
   const assigneeId = isPrivateDesignerTask ? user.id : body.assigneeId;
   const assignee = db.users.find((item) => item.id === assigneeId && item.role === "designer");
   if (!body.title || !assignee) {
@@ -53,6 +61,7 @@ async function handleCreateTask(req, res) {
     orderNo: String(body.orderNo || "").trim(),
     taobaoId: String(body.taobaoId || "").trim(),
     remark: String(body.remark || "").trim(),
+    remarkRecords: [],
     visibility: isPrivateDesignerTask ? "private" : "public",
     creatorId: user.id,
     assigneeId: assignee.id,
@@ -84,9 +93,13 @@ async function handleUpdateTask(req, res, taskId) {
     sendError(res, 403, "无权修改该任务");
     return;
   }
-  const briefFields = ["title", "description", "assigneeId", "dueDate", "priority", "wechat", "orderNo", "taobaoId"];
-  if (!canEditBrief(user, task) && briefFields.some((field) => Object.hasOwn(body, field))) {
+  const briefFields = ["title", "description", "assigneeId", "dueDate", "priority", "wechat", "orderNo", "taobaoId", "remark"];
+  if (!canEditTaskBrief(user, task) && briefFields.some((field) => Object.hasOwn(body, field))) {
     sendError(res, 403, "当前账号只能更新进度和状态");
+    return;
+  }
+  if (Object.hasOwn(body, "status") && !canUpdateTaskStatus(user, task)) {
+    sendError(res, 403, "当前账号无权更新任务状态");
     return;
   }
   if (body.title !== undefined) task.title = String(body.title).trim();
@@ -111,14 +124,14 @@ async function handleUpdateTask(req, res, taskId) {
 async function handleRestoreTask(req, res, taskId) {
   const user = requireUser(req, res);
   if (!user) return;
-  if (user.role !== "owner") {
-    sendError(res, 403, "只有管理员可以恢复归档任务");
-    return;
-  }
   const db = readDb();
   const task = db.tasks.find((item) => item.id === taskId);
   if (!task) {
     sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (!canRestoreTask(user, task)) {
+    sendError(res, 403, "只有管理员可以恢复归档任务");
     return;
   }
   task.archivedAt = "";
