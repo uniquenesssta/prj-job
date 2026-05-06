@@ -1,0 +1,3 @@
+function renderAccountPage() {
+  renderAccountManagementPage();
+}

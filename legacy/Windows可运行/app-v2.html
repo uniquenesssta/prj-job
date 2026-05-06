@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计任务执行台</title>
+    <link rel="stylesheet" href="app-v2.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="login-view" id="loginView" hidden>
+        <div class="brand-panel" aria-hidden="true">
+          <div class="print-stack">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+        <form class="login-card" id="loginForm">
+          <p class="eyebrow">Studio Task Hub</p>
+          <h1>设计任务执行台</h1>
+          <p>客服录入需求，设计师接单交付，管理员掌控全局。</p>
+          <label>
+            <span>账号</span>
+            <input id="username" name="username" autocomplete="username" required />
+          </label>
+          <label>
+            <span>密码</span>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">登录</button>
+          <p class="error" id="loginError" role="alert"></p>
+        </form>
+      </section>
+
+      <section class="app-view" id="appView" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="roleEyebrow">Workspace</p>
+            <h1 id="pageTitle">工作台</h1>
+            <p id="pageSubtitle">任务清楚一点，交付就轻一点。</p>
+          </div>
+          <div class="user-actions">
+            <span id="currentUser"></span>
+            <button class="button secondary" id="logoutButton" type="button">退出</button>
+          </div>
+        </header>
+
+        <section class="metrics" id="metrics"></section>
+
+        <nav class="toolbar">
+          <div class="segmented" id="adminTabs" hidden>
+            <button class="active" type="button" data-admin-view="designer">设计师</button>
+            <button type="button" data-admin-view="service">客服</button>
+            <button type="button" data-admin-view="account">账号</button>
+            <button type="button" data-admin-view="archived">归档</button>
+          </div>
+          <div class="segmented" id="viewTabs">
+            <button class="active" type="button" data-status="all">全部</button>
+            <button type="button" data-status="todo">待开始</button>
+            <button type="button" data-status="doing">进行中</button>
+            <button type="button" data-status="review">待审核</button>
+            <button type="button" data-status="done">已完成</button>
+          </div>
+          <label class="compact-field" id="assigneeFilterWrap">
+            <span>设计师</span>
+            <select id="assigneeFilter"></select>
+          </label>
+          <label class="search-field">
+            <span>搜索</span>
+            <input id="searchInput" placeholder="任务、微信、订单号、淘宝ID" />
+          </label>
+          <div class="view-switch" id="designerLayoutSwitch" hidden>
+            <button class="active" type="button" data-layout="card" title="卡片式">▦</button>
+            <button type="button" data-layout="list" title="列表式">☰</button>
+          </div>
+        </nav>
+
+        <section class="workspace" id="workspace"></section>
+      </section>
+    </main>
+
+    <script src="app-v2.js"></script>
+  </body>
+</html>

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设计任务执行台</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="login-view" id="loginView" hidden>
+        <div class="login-art" aria-hidden="true">
+          <div class="poster-board">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+        <form class="login-card" id="loginForm">
+          <p class="eyebrow">Studio Task Hub</p>
+          <h1>设计任务执行台</h1>
+          <p class="login-copy">把平面设计任务拆清楚、分出去、收回来，文件和进度都留在同一个地方。</p>
+          <label>
+            <span>账号</span>
+            <input id="username" name="username" autocomplete="username" required value="admin" />
+          </label>
+          <label>
+            <span>密码</span>
+            <input id="password" name="password" type="password" autocomplete="current-password" required value="admin123" />
+          </label>
+          <button type="submit">登录</button>
+          <p class="hint">默认管理员：admin / admin123；成员：aming、ayan、aqi / design123</p>
+          <p class="error" id="loginError" role="alert"></p>
+        </form>
+      </section>
+
+      <section class="app-view" id="appView" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Design Operations</p>
+            <h1>设计任务执行台</h1>
+            <p class="subtitle">分配、跟进、交付、下载，一个局域网内的小型工作室后台。</p>
+          </div>
+          <div class="user-box">
+            <span id="currentUser">未登录</span>
+            <button class="ghost-button" id="logoutButton" type="button">退出</button>
+          </div>
+        </header>
+
+        <section class="metrics" aria-label="任务指标">
+          <article>
+            <span>总任务</span>
+            <strong id="metricTotal">0</strong>
+          </article>
+          <article>
+            <span>进行中</span>
+            <strong id="metricDoing">0</strong>
+          </article>
+          <article>
+            <span>待审核</span>
+            <strong id="metricReview">0</strong>
+          </article>
+          <article>
+            <span>临近截止</span>
+            <strong id="metricDue">0</strong>
+          </article>
+        </section>
+
+        <nav class="toolbar" aria-label="任务筛选">
+          <div class="segmented" id="statusTabs">
+            <button class="active" type="button" data-status="all">全部</button>
+            <button type="button" data-status="todo">待开始</button>
+            <button type="button" data-status="doing">进行中</button>
+            <button type="button" data-status="review">待审核</button>
+            <button type="button" data-status="done">已完成</button>
+          </div>
+          <label>
+            <span>负责人</span>
+            <select id="assigneeFilter">
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <label class="search-field">
+            <span>搜索</span>
+            <input id="searchInput" placeholder="任务名、说明、负责人" />
+          </label>
+        </nav>
+
+        <section class="workspace">
+          <aside class="create-panel" id="createPanel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Assign</p>
+                <h2>新建任务</h2>
+              </div>
+            </div>
+            <form id="taskForm" class="task-form">
+              <label>
+                <span>任务名称</span>
+                <input name="title" required placeholder="例如：餐饮开业海报三版" />
+              </label>
+              <label>
+                <span>任务说明</span>
+                <textarea name="description" rows="4" placeholder="尺寸、风格、文案、参考图、交付格式"></textarea>
+              </label>
+              <div class="form-grid">
+                <label>
+                  <span>负责人</span>
+                  <select name="assigneeId" id="assigneeSelect" required></select>
+                </label>
+                <label>
+                  <span>优先级</span>
+                  <select name="priority">
+                    <option value="normal">普通</option>
+                    <option value="high">重要</option>
+                    <option value="urgent">加急</option>
+                    <option value="low">低</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                <span>截止日期</span>
+                <input name="dueDate" type="date" />
+              </label>
+              <button type="submit">分配任务</button>
+              <p class="form-message" id="formMessage"></p>
+            </form>
+
+            <div class="team-box">
+              <div class="section-head compact">
+                <div>
+                  <p class="eyebrow">Team</p>
+                  <h2>新增成员</h2>
+                </div>
+              </div>
+              <form id="memberForm" class="task-form">
+                <label>
+                  <span>姓名</span>
+                  <input name="name" required placeholder="例如：小周" />
+                </label>
+                <label>
+                  <span>登录账号</span>
+                  <input name="username" required placeholder="例如：zhou" />
+                </label>
+                <label>
+                  <span>初始密码</span>
+                  <input name="password" type="password" required minlength="6" placeholder="至少 6 位" />
+                </label>
+                <button type="submit">添加成员</button>
+                <p class="form-message" id="memberMessage"></p>
+              </form>
+            </div>
+          </aside>
+
+          <section class="board-panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Tasks</p>
+                <h2>任务池</h2>
+              </div>
+              <button class="ghost-button" id="refreshButton" type="button">刷新</button>
+            </div>
+            <div class="task-list" id="taskList"></div>
+          </section>
+
+          <aside class="detail-panel" id="detailPanel">
+            <div class="empty-detail">
+              <p class="eyebrow">Detail</p>
+              <h2>选择一个任务</h2>
+              <p>查看说明、调整状态、上传设计稿或下载交付文件。</p>
+            </div>
+          </aside>
+        </section>
+      </section>
+    </main>
+
+    <template id="taskTemplate">
+      <article class="task-card">
+        <button class="task-main" type="button">
+          <div>
+            <strong data-field="title"></strong>
+            <p data-field="description"></p>
+          </div>
+          <span class="status-pill" data-field="status"></span>
+        </button>
+        <div class="task-meta">
+          <span data-field="assignee"></span>
+          <span data-field="due"></span>
+        </div>
+        <div class="progress-line"><span data-field="progressBar"></span></div>
+      </article>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>
