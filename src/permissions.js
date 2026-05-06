@@ -55,7 +55,16 @@ function canCommentTask(user, task) {
   return canAccessTask(user, task) && task.visibility !== "private";
 }
 
+function canReadPersonalNote(user, task, note) {
+  if (!user || !task || !note) return false;
+  return canAccessTask(user, task) && note.userId === user.id;
+}
+
 function canWritePersonalNote(user, task) {
+  return canAccessTask(user, task);
+}
+
+function canWritePersonalRemark(user, task) {
   if (!user || !task) return false;
   return isDesigner(user) && task.visibility === "private" && task.creatorId === user.id && task.assigneeId === user.id;
 }
@@ -81,8 +90,10 @@ module.exports = {
   canDownloadTaskFile,
   canEditTaskBrief,
   canManageUsers,
+  canReadPersonalNote,
   canRestoreTask,
   canUpdateTaskStatus,
   canUploadToTask,
   canWritePersonalNote,
+  canWritePersonalRemark,
 };

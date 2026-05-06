@@ -1,11 +1,13 @@
 function renderHeader(view) {
   const titleMap = {
+    overview: "管理总览",
     designer: state.user.role === "owner" ? "设计师执行视图" : "我的设计任务",
     service: state.user.role === "owner" ? "客服录单视图" : "客服任务录入",
     account: "账号管理",
     archived: "归档项目",
   };
   const subtitleMap = {
+    overview: "查看全局负载、超时任务、加急任务和团队当前工作量。",
     designer: "优先级、截止时间、备注和附件集中在一张清爽任务池里。",
     service: "把客户微信、订单号、淘宝ID和设计要求一次录清楚。",
     account: "新增管理员、客服或设计师账号，并查看当前团队。",
@@ -17,16 +19,23 @@ function renderHeader(view) {
 }
 
 function renderToolbar(view) {
-  viewTabs.hidden = view === "account";
+  viewTabs.hidden = view === "account" || view === "overview";
   assigneeFilterWrap.hidden = view !== "designer" || state.user.role !== "owner";
-  searchInput.closest("label").hidden = view === "account";
+  searchInput.closest("label").hidden = view === "account" || view === "overview";
   layoutSwitch.hidden = !["designer", "archived"].includes(view);
 }
 
 function renderMetrics(view) {
-  const tasks = filteredTasks(view);
+  const tasks = view === "overview" ? state.tasks.filter((task) => !task.archivedAt) : filteredTasks(view);
   const metricItems =
-    view === "account"
+    view === "overview"
+      ? [
+          ["任务总数", tasks.length],
+          ["进行中", tasks.filter((task) => task.status === "doing").length],
+          ["已超时", tasks.filter(isOverdue).length],
+          ["加急", tasks.filter((task) => task.priority === "urgent" && task.status !== "done").length],
+        ]
+      : view === "account"
       ? [
           ["总账号", state.users.length],
           ["设计师", state.users.filter((user) => user.role === "designer").length],

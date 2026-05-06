@@ -125,7 +125,7 @@ function migrateDb() {
       task.creatorId = fallbackCreator;
       changed = true;
     }
-    for (const field of ["wechat", "orderNo", "taobaoId", "remark"]) {
+    for (const field of ["wechat", "orderNo", "taobaoId", "taskType", "sizeSpec", "deliverFormat", "customerRequirement", "remark"]) {
       if (task[field] === undefined) {
         task[field] = "";
         changed = true;

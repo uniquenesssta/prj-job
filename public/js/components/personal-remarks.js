@@ -1,5 +1,5 @@
 function renderPersonalRemark(task) {
-  const records = (task.remarkRecords || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const records = (state.personalNotesByTask[task.id] || task.remarkRecords || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   return `
     <section class="detail-card personal-remark-card">
       <div class="section-head compact-head">
@@ -136,10 +136,11 @@ function bindPersonalRemarkEvents() {
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
-      await api(`/api/tasks/${state.selectedTaskId}/remarks`, { method: "POST", body });
+      await api(`/api/tasks/${state.selectedTaskId}/personal-note`, { method: "PUT", body });
       state.pendingRemarkImages = [];
       textarea.value = "";
       await loadData();
+      await loadPersonalNotes(state.selectedTaskId);
       render();
     } catch (error) {
       message.style.color = "#cf4d40";

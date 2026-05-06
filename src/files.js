@@ -37,7 +37,9 @@ async function handleUpload(req, res, taskId) {
       sendError(res, 403, "无权上传到该任务");
       return;
     }
-    const file = parseMultipartFile(await readBody(req), boundary);
+    const parsed = parseMultipartParts(await readBody(req), boundary);
+    const file = parsed.files.find((item) => item.name === "file") || null;
+    const usage = normalizeFileUsage(parsed.fields.usage || parsed.fields.fileCategory || defaultFileUsage(user));
     if (!file || !file.data.length) {
       sendError(res, 400, "请选择要上传的文件");
       return;
@@ -59,6 +61,7 @@ async function handleUpload(req, res, taskId) {
       folderName,
       size: file.data.length,
       mimeType: file.contentType || "application/octet-stream",
+      usage,
       uploadedBy: user.id,
       uploadedByName: user.name,
       uploadedByRole: user.role,
@@ -110,6 +113,17 @@ function parseMultipartParts(buffer, boundary) {
 
 function sanitizeFilename(filename) {
   return (path.basename(filename).replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").slice(0, 160) || "upload.bin");
+}
+
+function defaultFileUsage(user) {
+  if (user.role === "service") return "material";
+  if (user.role === "designer") return "draft";
+  return "other";
+}
+
+function normalizeFileUsage(value) {
+  const usage = String(value || "").trim();
+  return ["material", "reference", "draft", "final", "source", "other", "remark"].includes(usage) ? usage : "other";
 }
 
 function sanitizeFolderPart(value, fallback = "未填写") {

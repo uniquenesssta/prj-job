@@ -15,8 +15,9 @@ const {
   readDb,
   writeDb,
 } = require("./storage");
+const { insertPersonalNote } = require("./repositories/notes-repo");
 const { requireUser } = require("./auth");
-const { canWritePersonalNote } = require("./permissions");
+const { canWritePersonalRemark } = require("./permissions");
 
 async function handleCreateRemark(req, res, taskId) {
   const user = requireUser(req, res);
@@ -27,7 +28,7 @@ async function handleCreateRemark(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
-  if (!canWritePersonalNote(user, task)) {
+  if (!canWritePersonalRemark(user, task)) {
     sendError(res, 403, "只有设计师本人的个人任务可以新增备注记录");
     return;
   }
@@ -45,7 +46,7 @@ async function handleCreateRemark(req, res, taskId) {
       sendError(res, 404, "任务不存在");
       return;
     }
-    if (!canWritePersonalNote(user, nextTask)) {
+    if (!canWritePersonalRemark(user, nextTask)) {
       sendError(res, 403, "无权修改该任务");
       return;
     }
@@ -60,19 +61,22 @@ async function handleCreateRemark(req, res, taskId) {
 
     const now = new Date().toISOString();
     const imageRecords = images.map((file, index) => saveRemarkImage(nextDb, nextTask, user, file, index, now));
+    const noteId = createId("note");
+    const imageFileIds = imageRecords.map((file) => file.id);
     nextDb.files.push(...imageRecords);
     if (!Array.isArray(nextTask.remarkRecords)) nextTask.remarkRecords = [];
     nextTask.remarkRecords.push({
-      id: createId("remark"),
+      id: noteId,
       taskId,
       authorId: user.id,
       text,
-      imageFileIds: imageRecords.map((file) => file.id),
+      imageFileIds,
       createdAt: now,
     });
     if (text) nextTask.remark = text;
     nextTask.updatedAt = now;
     writeDb(nextDb);
+    insertPersonalNote({ id: noteId, taskId, userId: user.id, text, imageFileIds, createdAt: now });
     broadcast("tasks-changed", { taskId: nextTask.id });
     sendJson(res, 201, { task: enrichTask(nextDb, nextTask) });
   });
@@ -140,4 +144,6 @@ function remarkImageExtension(file, originalName) {
 
 module.exports = {
   handleCreateRemark,
+  isRemarkImage,
+  saveRemarkImage,
 };

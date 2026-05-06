@@ -4,14 +4,16 @@ function filteredTasks(view) {
     const designerViewOk = view !== "designer" || (state.designerView === "private" ? task.visibility === "private" : task.visibility !== "private");
     const statusOk = state.status === "all" || task.status === state.status;
     const assigneeOk = state.assignee === "all" || task.assigneeId === state.assignee || view !== "designer" || state.user.role !== "owner";
-    const text = `${task.title} ${task.description} ${task.remark || ""} ${task.assigneeName} ${task.creatorName} ${task.wechat} ${task.orderNo} ${task.taobaoId}`.toLowerCase();
+    const text = `${task.title} ${task.description} ${task.remark || ""} ${task.assigneeName} ${task.creatorName} ${task.wechat} ${task.orderNo} ${task.taobaoId} ${task.taskType || ""} ${task.sizeSpec || ""} ${task.deliverFormat || ""} ${task.customerRequirement || ""}`.toLowerCase();
     const searchOk = !state.search || text.includes(state.search);
     return archivedOk && designerViewOk && statusOk && assigneeOk && searchOk;
   });
 }
 
 function canEditBrief(task) {
-  return state.user.role === "owner" || (state.user.role === "service" && task.creatorId === state.user.id);
+  return state.user.role === "owner"
+    || (state.user.role === "service" && task.creatorId === state.user.id)
+    || (state.user.role === "designer" && task.visibility === "private" && task.creatorId === state.user.id);
 }
 
 function latestComment(task) {
@@ -30,6 +32,28 @@ function isDueSoon(task) {
   const due = new Date(`${task.dueDate}T00:00:00`);
   const days = Math.ceil((due - today) / 86400000);
   return days >= 0 && days <= 3;
+}
+
+function isDueToday(task) {
+  if (!task.dueDate || task.status === "done") return false;
+  return dueTime(task) === todayTime();
+}
+
+function isOverdue(task) {
+  if (!task.dueDate || task.status === "done") return false;
+  return dueTime(task) < todayTime();
+}
+
+function todayTime() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime();
+}
+
+function dueTime(task) {
+  if (!task.dueDate) return Number.MAX_SAFE_INTEGER;
+  const due = new Date(`${task.dueDate}T00:00:00`);
+  return Number.isNaN(due.getTime()) ? Number.MAX_SAFE_INTEGER : due.getTime();
 }
 
 function formatSize(size) {

@@ -8,6 +8,69 @@ function renderTaskList(tasks) {
   `;
 }
 
+function renderGroupedTaskList(tasks) {
+  if (!tasks.length) return '<div class="empty">没有匹配的任务</div>';
+  const groups = groupDesignerTasks(tasks).filter((group) => group.tasks.length);
+  return `
+    <div class="task-groups" id="taskList">
+      ${groups.map((group) => `
+        <section class="task-group ${group.tone}">
+          <div class="task-group-head">
+            <div>
+              <strong>${group.label}</strong>
+              <span>${group.hint}</span>
+            </div>
+            <b>${group.tasks.length}</b>
+          </div>
+          <div class="task-list ${state.layout === "list" ? "list-mode" : ""}">
+            ${group.tasks.map(renderTaskCard).join("")}
+          </div>
+        </section>
+      `).join("")}
+    </div>
+  `;
+}
+
+function groupDesignerTasks(tasks) {
+  const groups = [
+    { key: "overdue", label: "已超时", hint: "先处理，避免继续拖延", tone: "danger", tasks: [] },
+    { key: "today", label: "今日截止", hint: "今天必须给到结果", tone: "warning", tasks: [] },
+    { key: "urgent", label: "加急任务", hint: "优先插队处理", tone: "danger", tasks: [] },
+    { key: "doing", label: "进行中", hint: "正在推进的任务", tone: "active", tasks: [] },
+    { key: "review", label: "待审核", hint: "需要检查或等确认", tone: "review", tasks: [] },
+    { key: "todo", label: "未开始", hint: "排队等待处理", tone: "neutral", tasks: [] },
+    { key: "blocked", label: "卡住", hint: "需要补资料或沟通", tone: "blocked", tasks: [] },
+    { key: "done", label: "已完成", hint: "可以收尾归档", tone: "done", tasks: [] },
+  ];
+  const byKey = Object.fromEntries(groups.map((group) => [group.key, group]));
+  sortTasksForDesigner(tasks).forEach((task) => {
+    byKey[designerTaskGroupKey(task)].tasks.push(task);
+  });
+  return groups;
+}
+
+function designerTaskGroupKey(task) {
+  if (task.status === "done") return "done";
+  if (isOverdue(task)) return "overdue";
+  if (isDueToday(task)) return "today";
+  if (task.priority === "urgent") return "urgent";
+  if (task.status === "doing") return "doing";
+  if (task.status === "review") return "review";
+  if (task.status === "blocked") return "blocked";
+  return "todo";
+}
+
+function sortTasksForDesigner(tasks) {
+  const priorityScore = { urgent: 0, high: 1, normal: 2, low: 3 };
+  return tasks.slice().sort((a, b) => {
+    const due = dueTime(a) - dueTime(b);
+    if (due !== 0) return due;
+    const priority = (priorityScore[a.priority] ?? 9) - (priorityScore[b.priority] ?? 9);
+    if (priority !== 0) return priority;
+    return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+  });
+}
+
 function renderTaskCard(task) {
   const preview = taskPreviewMessage(task);
   return `
@@ -26,6 +89,11 @@ function renderTaskCard(task) {
         <span>${task.visibility === "private" ? "个人任务" : `客服：${escapeHtml(task.creatorName)}`}</span>
         <span>${task.dueDate ? `截止：${task.dueDate}` : "未设截止"}</span>
         ${task.orderNo ? `<span>订单：${escapeHtml(task.orderNo)}</span>` : ""}
+        ${task.taskType ? `<span>类型：${escapeHtml(task.taskType)}</span>` : ""}
+        ${task.sizeSpec ? `<span>尺寸：${escapeHtml(task.sizeSpec)}</span>` : ""}
+        ${task.deliverFormat ? `<span>格式：${escapeHtml(task.deliverFormat)}</span>` : ""}
+        <span>附件：${(task.attachments || []).length}</span>
+        <span>${task.visibility === "private" ? `备注：${(state.personalNotesByTask[task.id] || task.remarkRecords || []).length}` : `留言：${(task.comments || []).length}`}</span>
       </div>
       ${preview ? `<div class="task-comment"><span>${preview.label}</span><p>${escapeHtml(preview.text)}</p></div>` : ""}
     </article>

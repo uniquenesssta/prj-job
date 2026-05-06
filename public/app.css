@@ -379,6 +379,11 @@ textarea:focus {
   grid-template-columns: 320px minmax(520px, 1.35fr) minmax(280px, 0.65fr);
 }
 
+.workspace.overview {
+  grid-template-columns: minmax(520px, 1.2fr) minmax(340px, 0.8fr) minmax(320px, 0.7fr);
+  align-items: start;
+}
+
 .panel,
 .detail-panel {
   padding: 18px;
@@ -443,6 +448,75 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
+}
+
+.task-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.task-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(245, 247, 250, 0.72);
+}
+
+.task-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.task-group-head strong {
+  display: block;
+  line-height: 1.25;
+}
+
+.task-group-head span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.task-group-head b {
+  min-width: 34px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.task-group.danger {
+  border-left: 5px solid var(--red);
+}
+
+.task-group.warning {
+  border-left: 5px solid var(--amber);
+}
+
+.task-group.active {
+  border-left: 5px solid var(--blue);
+}
+
+.task-group.review {
+  border-left: 5px solid var(--violet);
+}
+
+.task-group.blocked {
+  border-left: 5px solid var(--red);
+}
+
+.task-group.done {
+  border-left: 5px solid var(--green);
 }
 
 .task-list.list-mode {
@@ -728,6 +802,12 @@ textarea:focus {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.design-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
 .inline-extra {
   display: grid;
   grid-template-columns: minmax(150px, 0.34fr) minmax(280px, 1fr);
@@ -755,6 +835,28 @@ textarea:focus {
   background: #fff;
 }
 
+.requirement-tile,
+.requirement-editor {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.requirement-tile span,
+.requirement-editor span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.requirement-tile p {
+  color: var(--ink);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .status-cell select {
   font-weight: 800;
 }
@@ -780,8 +882,9 @@ textarea:focus {
   gap: 9px;
 }
 
-.file-list h2 + h2 {
-  margin-top: 10px;
+.upload-form-grid {
+  grid-template-columns: minmax(160px, 0.32fr) minmax(260px, 1fr) auto;
+  align-items: end;
 }
 
 .file-item {
@@ -806,6 +909,35 @@ textarea:focus {
   color: var(--blue);
   font-weight: 800;
   text-decoration: none;
+}
+
+.file-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.file-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.file-group-head span {
+  min-width: 28px;
+  min-height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .comments {
@@ -1227,6 +1359,149 @@ textarea:focus {
   margin-bottom: 14px;
 }
 
+.overview-main,
+.overview-side {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.load-card {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--blue);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.load-card.warning {
+  border-left-color: var(--amber);
+}
+
+.load-card.danger {
+  border-left-color: var(--red);
+}
+
+.load-head,
+.overview-row,
+.risk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.load-head strong,
+.overview-row strong,
+.risk-head strong {
+  display: block;
+}
+
+.load-head span,
+.overview-row span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.load-head b,
+.overview-row b,
+.risk-head span {
+  min-width: 34px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+}
+
+.load-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.load-stats span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.overview-list {
+  display: grid;
+  gap: 9px;
+}
+
+.overview-row,
+.overview-task,
+.risk-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.overview-row {
+  padding: 11px;
+}
+
+.risk-block {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.risk-block.danger {
+  border-left: 5px solid var(--red);
+}
+
+.risk-block.warning {
+  border-left: 5px solid var(--amber);
+}
+
+.risk-block.review {
+  border-left: 5px solid var(--violet);
+}
+
+.overview-task {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+  color: inherit;
+}
+
+.overview-task:hover {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(47, 111, 221, 0.12);
+}
+
+.overview-task span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.overview-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .person-row span {
   display: block;
   color: var(--muted);
@@ -1243,6 +1518,7 @@ textarea:focus {
   .workspace.admin-designer,
   .workspace.service,
   .workspace.admin-service,
+  .workspace.overview,
   .workspace.account {
     grid-template-columns: 1fr;
   }
@@ -1302,8 +1578,11 @@ textarea:focus {
   .update-grid,
   .summary-strip,
   .work-strip,
+  .design-strip,
   .inline-extra,
+  .upload-form-grid,
   .user-edit-form,
+  .overview-actions,
   .task-list.list-mode .task-button {
     grid-template-columns: 1fr;
   }

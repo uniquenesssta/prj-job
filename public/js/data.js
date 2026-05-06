@@ -3,7 +3,20 @@ async function loadData() {
   const [usersData, tasksData] = await Promise.all([api("/api/users"), api(taskUrl)]);
   state.users = usersData.users;
   state.tasks = tasksData.tasks;
+  if (state.selectedTaskId && state.tasks.some((task) => task.id === state.selectedTaskId)) {
+    await loadPersonalNotes(state.selectedTaskId);
+  }
   hydrateAssigneeFilter();
+}
+
+async function loadPersonalNotes(taskId) {
+  if (!taskId) return;
+  try {
+    const data = await api(`/api/tasks/${taskId}/personal-note`);
+    state.personalNotesByTask[taskId] = data.notes || [];
+  } catch {
+    state.personalNotesByTask[taskId] = [];
+  }
 }
 
 async function reloadTasks() {

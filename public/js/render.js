@@ -3,6 +3,7 @@ function render() {
   renderHeader(view);
   renderToolbar(view);
   renderMetrics(view);
+  if (view === "overview") renderOverviewPage();
   if (view === "account") renderAccountPage();
   if (view === "designer") renderDesignerPage();
   if (view === "service") renderServicePage();

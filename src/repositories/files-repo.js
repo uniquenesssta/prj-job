@@ -35,7 +35,13 @@ function normalizeFile(file) {
   return {
     ...file,
     size: Number(file.size || 0),
+    usage: normalizeFileUsage(file.usage),
   };
+}
+
+function normalizeFileUsage(value) {
+  const usage = String(value || "").trim();
+  return ["material", "reference", "draft", "final", "source", "other", "remark"].includes(usage) ? usage : "other";
 }
 
 module.exports = {

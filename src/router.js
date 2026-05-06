@@ -10,9 +10,10 @@ const {
   handleUsers,
   requireUser,
 } = require("./auth");
-const { handleCreateComment } = require("./comments");
+const { handleCreateComment, handleGetComments } = require("./comments");
 const { handleEvents } = require("./events");
 const { handleDownload, handleInlineFile, handleUpload } = require("./files");
+const { handleGetPersonalNote, handlePutPersonalNote } = require("./notes");
 const { handleCreateRemark } = require("./remarks");
 const { serveStatic } = require("./static");
 const {
@@ -53,7 +54,11 @@ function route(req, res) {
       const remark = pathname.match(/^\/api\/tasks\/([^/]+)\/remarks$/);
       if (req.method === "POST" && remark) return handleCreateRemark(req, res, remark[1]);
       const comment = pathname.match(/^\/api\/tasks\/([^/]+)\/comments$/);
+      if (req.method === "GET" && comment) return handleGetComments(req, res, comment[1]);
       if (req.method === "POST" && comment) return handleCreateComment(req, res, comment[1]);
+      const personalNote = pathname.match(/^\/api\/tasks\/([^/]+)\/personal-note$/);
+      if (req.method === "GET" && personalNote) return handleGetPersonalNote(req, res, personalNote[1]);
+      if (req.method === "PUT" && personalNote) return handlePutPersonalNote(req, res, personalNote[1]);
       const inlineFile = pathname.match(/^\/api\/files\/([^/]+)\/inline$/);
       if (req.method === "GET" && inlineFile) return handleInlineFile(req, res, inlineFile[1]);
       const download = pathname.match(/^\/api\/files\/([^/]+)$/);

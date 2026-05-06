@@ -73,6 +73,15 @@ function renderInlineInfo(task) {
           ${readonly("客服", task.creatorName)}
           <label class="info-tile status-cell"><span>状态</span><select name="status">${statusOptions(task.status)}</select></label>
         </div>
+        <div class="design-strip">
+          ${readonly("任务类型", task.taskType)}
+          ${readonly("尺寸规格", task.sizeSpec)}
+          ${readonly("交付格式", task.deliverFormat)}
+        </div>
+        <div class="requirement-tile">
+          <span>客户原始需求</span>
+          <p>${escapeHtml(task.customerRequirement || "未填写")}</p>
+        </div>
         <button type="submit">更新状态</button>
       </form>
     `;
@@ -93,6 +102,11 @@ function renderInlineInfo(task) {
         <label class="info-tile"><span>状态</span><select name="status">${statusOptions(task.status)}</select></label>
         <label class="info-tile"><span>截止日期</span><input name="dueDate" type="date" value="${task.dueDate || ""}" /></label>
       </div>
+      <div class="design-strip">
+        <label class="info-tile"><span>任务类型</span><select name="taskType">${taskTypeOptions(task.taskType)}</select></label>
+        <label class="info-tile"><span>尺寸规格</span><input name="sizeSpec" value="${escapeAttr(task.sizeSpec || "")}" /></label>
+        <label class="info-tile"><span>交付格式</span><select name="deliverFormat">${deliverFormatOptions(task.deliverFormat)}</select></label>
+      </div>
       <div class="inline-extra">
         <label>
           <span>优先级</span>
@@ -103,6 +117,10 @@ function renderInlineInfo(task) {
           <textarea name="description" rows="2">${escapeHtml(task.description || "")}</textarea>
         </label>
       </div>
+      <label class="requirement-editor">
+        <span>客户原始需求</span>
+        <textarea name="customerRequirement" rows="3">${escapeHtml(task.customerRequirement || "")}</textarea>
+      </label>
       <button type="submit">保存修改</button>
     </form>
   `;
@@ -110,6 +128,16 @@ function renderInlineInfo(task) {
 
 function statusOptions(currentStatus) {
   return Object.keys(statusLabels).map((status) => `<option value="${status}" ${status === currentStatus ? "selected" : ""}>${statusLabels[status]}</option>`).join("");
+}
+
+function taskTypeOptions(currentType) {
+  const options = ["", "海报", "详情页", "KT板", "易拉宝", "主图", "头像/LOGO", "包装", "其他"];
+  return options.map((item) => `<option value="${escapeAttr(item)}" ${item === currentType ? "selected" : ""}>${item || "未选择"}</option>`).join("");
+}
+
+function deliverFormatOptions(currentFormat) {
+  const options = ["", "JPG", "PNG", "PSD", "AI", "PDF", "其他"];
+  return options.map((item) => `<option value="${escapeAttr(item)}" ${item === currentFormat ? "selected" : ""}>${item || "未选择"}</option>`).join("");
 }
 
 function renderBriefEditor(task) {

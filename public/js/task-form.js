@@ -11,6 +11,36 @@ function renderTaskForm() {
       <label><span>淘宝ID</span><input name="taobaoId" placeholder="淘宝买家ID或店铺ID" /></label>
       <div class="form-grid">
         <label>
+          <span>任务类型</span>
+          <select name="taskType">
+            <option value="">未选择</option>
+            <option value="海报">海报</option>
+            <option value="详情页">详情页</option>
+            <option value="KT板">KT板</option>
+            <option value="易拉宝">易拉宝</option>
+            <option value="主图">主图</option>
+            <option value="头像/LOGO">头像/LOGO</option>
+            <option value="包装">包装</option>
+            <option value="其他">其他</option>
+          </select>
+        </label>
+        <label><span>尺寸规格</span><input name="sizeSpec" placeholder="例如：80x180cm / 1920x1080px" /></label>
+      </div>
+      <label>
+        <span>交付格式</span>
+        <select name="deliverFormat">
+          <option value="">未选择</option>
+          <option value="JPG">JPG</option>
+          <option value="PNG">PNG</option>
+          <option value="PSD">PSD</option>
+          <option value="AI">AI</option>
+          <option value="PDF">PDF</option>
+          <option value="其他">其他</option>
+        </select>
+      </label>
+      <label><span>客户原始需求</span><textarea name="customerRequirement" rows="3" placeholder="尽量保留客户原话、修改点、参考方向"></textarea></label>
+      <div class="form-grid">
+        <label>
           <span>设计师</span>
           <select name="assigneeId" required>${designers.map((user) => `<option value="${user.id}">${escapeHtml(user.name)}</option>`).join("")}</select>
         </label>

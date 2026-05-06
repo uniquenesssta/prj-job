@@ -60,6 +60,10 @@ async function handleCreateTask(req, res) {
     wechat: String(body.wechat || "").trim(),
     orderNo: String(body.orderNo || "").trim(),
     taobaoId: String(body.taobaoId || "").trim(),
+    taskType: String(body.taskType || "").trim(),
+    sizeSpec: String(body.sizeSpec || "").trim(),
+    deliverFormat: String(body.deliverFormat || "").trim(),
+    customerRequirement: String(body.customerRequirement || "").trim(),
     remark: String(body.remark || "").trim(),
     remarkRecords: [],
     visibility: isPrivateDesignerTask ? "private" : "public",
@@ -93,7 +97,21 @@ async function handleUpdateTask(req, res, taskId) {
     sendError(res, 403, "无权修改该任务");
     return;
   }
-  const briefFields = ["title", "description", "assigneeId", "dueDate", "priority", "wechat", "orderNo", "taobaoId", "remark"];
+  const briefFields = [
+    "title",
+    "description",
+    "assigneeId",
+    "dueDate",
+    "priority",
+    "wechat",
+    "orderNo",
+    "taobaoId",
+    "taskType",
+    "sizeSpec",
+    "deliverFormat",
+    "customerRequirement",
+    "remark",
+  ];
   if (!canEditTaskBrief(user, task) && briefFields.some((field) => Object.hasOwn(body, field))) {
     sendError(res, 403, "当前账号只能更新进度和状态");
     return;
@@ -107,6 +125,10 @@ async function handleUpdateTask(req, res, taskId) {
   if (body.wechat !== undefined) task.wechat = String(body.wechat).trim();
   if (body.orderNo !== undefined) task.orderNo = String(body.orderNo).trim();
   if (body.taobaoId !== undefined) task.taobaoId = String(body.taobaoId).trim();
+  if (body.taskType !== undefined) task.taskType = String(body.taskType).trim();
+  if (body.sizeSpec !== undefined) task.sizeSpec = String(body.sizeSpec).trim();
+  if (body.deliverFormat !== undefined) task.deliverFormat = String(body.deliverFormat).trim();
+  if (body.customerRequirement !== undefined) task.customerRequirement = String(body.customerRequirement).trim();
   if (body.remark !== undefined) task.remark = String(body.remark).trim();
   if (body.assigneeId !== undefined && db.users.some((item) => item.id === body.assigneeId && item.role === "designer")) task.assigneeId = body.assigneeId;
   if (body.dueDate !== undefined) task.dueDate = String(body.dueDate).trim();

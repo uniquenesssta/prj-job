@@ -19,7 +19,7 @@ function renderDesignerPage() {
           <button class="${state.designerView === "private" ? "active" : ""}" type="button" data-designer-view="private">我的个人任务</button>
         </div>
       ` : ""}
-      ${renderTaskList(tasks)}
+      ${state.user.role === "designer" ? renderGroupedTaskList(tasks) : renderTaskList(tasks)}
     </section>
     <aside class="detail-panel" id="detailPanel">${renderDetail()}</aside>
     ${renderPersonalTaskModal()}

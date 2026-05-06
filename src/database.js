@@ -1,4 +1,5 @@
 const fs = require("fs");
+const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 const {
   ARCHIVE_DIR,
@@ -17,6 +18,9 @@ function ensureDatabase() {
   ensureDirectory(ARCHIVE_DIR);
   const db = getDatabase();
   createSchema(db);
+  migrateTaskDesignFields(db);
+  migrateFileUsageField(db);
+  migratePersonalNotesSchema(db);
   createIndexes(db);
   return db;
 }
@@ -51,6 +55,10 @@ function createSchema(db) {
       wechat TEXT NOT NULL DEFAULT '',
       orderNo TEXT NOT NULL DEFAULT '',
       taobaoId TEXT NOT NULL DEFAULT '',
+      taskType TEXT NOT NULL DEFAULT '',
+      sizeSpec TEXT NOT NULL DEFAULT '',
+      deliverFormat TEXT NOT NULL DEFAULT '',
+      customerRequirement TEXT NOT NULL DEFAULT '',
       remark TEXT NOT NULL DEFAULT '',
       remarkRecords TEXT NOT NULL DEFAULT '[]',
       visibility TEXT NOT NULL DEFAULT 'public',
@@ -103,10 +111,64 @@ function createSchema(db) {
       taskId TEXT NOT NULL,
       userId TEXT NOT NULL,
       text TEXT NOT NULL DEFAULT '',
-      updatedAt TEXT NOT NULL,
-      UNIQUE(taskId, userId)
+      imageFileIds TEXT NOT NULL DEFAULT '[]',
+      createdAt TEXT NOT NULL
     );
   `);
+}
+
+function migrateFileUsageField(db) {
+  const columns = db.prepare("PRAGMA table_info(files)").all().map((column) => column.name);
+  if (!columns.includes("usage")) db.exec("ALTER TABLE files ADD COLUMN usage TEXT NOT NULL DEFAULT 'other'");
+  if (!columns.includes("storageArea")) db.exec("ALTER TABLE files ADD COLUMN storageArea TEXT NOT NULL DEFAULT 'upload'");
+}
+
+function migrateTaskDesignFields(db) {
+  const columns = db.prepare("PRAGMA table_info(tasks)").all().map((column) => column.name);
+  const fields = [
+    ["taskType", "TEXT NOT NULL DEFAULT ''"],
+    ["sizeSpec", "TEXT NOT NULL DEFAULT ''"],
+    ["deliverFormat", "TEXT NOT NULL DEFAULT ''"],
+    ["customerRequirement", "TEXT NOT NULL DEFAULT ''"],
+  ];
+  fields.forEach(([name, definition]) => {
+    if (!columns.includes(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
+  });
+}
+
+function migratePersonalNotesSchema(db) {
+  const columns = db.prepare("PRAGMA table_info(personal_notes)").all().map((column) => column.name);
+  const indexes = db.prepare("PRAGMA index_list(personal_notes)").all();
+  const hasOldUniqueConstraint = indexes.some((index) => index.unique && index.origin === "u");
+  const needsMigration = hasOldUniqueConstraint || !columns.includes("imageFileIds") || !columns.includes("createdAt");
+  if (!needsMigration) return;
+
+  db.exec("ALTER TABLE personal_notes RENAME TO personal_notes_legacy");
+  db.exec(`
+    CREATE TABLE personal_notes (
+      id TEXT PRIMARY KEY,
+      taskId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
+      imageFileIds TEXT NOT NULL DEFAULT '[]',
+      createdAt TEXT NOT NULL
+    );
+  `);
+
+  const legacyColumns = db.prepare("PRAGMA table_info(personal_notes_legacy)").all().map((column) => column.name);
+  const legacyRows = db.prepare("SELECT * FROM personal_notes_legacy").all();
+  const insert = db.prepare("INSERT INTO personal_notes (id, taskId, userId, text, imageFileIds, createdAt) VALUES (?, ?, ?, ?, ?, ?)");
+  legacyRows.forEach((row) => {
+    insert.run(
+      row.id || createDatabaseId("note"),
+      row.taskId || row.task_id || "",
+      row.userId || row.user_id || "",
+      row.text || "",
+      legacyColumns.includes("imageFileIds") ? row.imageFileIds || "[]" : "[]",
+      row.createdAt || row.updatedAt || row.updated_at || new Date().toISOString()
+    );
+  });
+  db.exec("DROP TABLE personal_notes_legacy");
 }
 
 function createIndexes(db) {
@@ -120,6 +182,10 @@ function createIndexes(db) {
     CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(taskId);
     CREATE INDEX IF NOT EXISTS idx_personal_notes_task_user ON personal_notes(taskId, userId);
   `);
+}
+
+function createDatabaseId(prefix) {
+  return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 }
 
 function isDatabaseEmpty(db = getDatabase()) {

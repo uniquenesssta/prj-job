@@ -14,9 +14,10 @@ function listTasks(db = getDatabase()) {
 function insertTasks(tasks, db = getDatabase()) {
   const insertTask = db.prepare(`
     INSERT INTO tasks (
-      id, title, description, wechat, orderNo, taobaoId, remark, remarkRecords, visibility,
+      id, title, description, wechat, orderNo, taobaoId, taskType, sizeSpec, deliverFormat, customerRequirement,
+      remark, remarkRecords, visibility,
       creatorId, assigneeId, priority, status, progress, dueDate, createdAt, updatedAt, archivedAt, archiveZipPath
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertAttachment = db.prepare("INSERT INTO task_attachments (taskId, fileId, position) VALUES (?, ?, ?)");
 
@@ -28,6 +29,10 @@ function insertTasks(tasks, db = getDatabase()) {
       String(task.wechat || ""),
       String(task.orderNo || ""),
       String(task.taobaoId || ""),
+      String(task.taskType || ""),
+      String(task.sizeSpec || ""),
+      String(task.deliverFormat || ""),
+      String(task.customerRequirement || ""),
       String(task.remark || ""),
       JSON.stringify(Array.isArray(task.remarkRecords) ? task.remarkRecords : []),
       String(task.visibility || "public"),

@@ -70,12 +70,13 @@ function bindStaticEvents() {
 
 function bindTaskPageEvents() {
   document.querySelector("#refreshTasks")?.addEventListener("click", reloadTasks);
-  document.querySelector("#taskList")?.addEventListener("click", (event) => {
+  document.querySelector("#taskList")?.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-task-id]");
     if (!button) return;
     state.selectedTaskId = button.dataset.taskId;
     state.briefEditOpen = false;
     state.pendingRemarkImages = [];
+    await loadPersonalNotes(state.selectedTaskId);
     render();
   });
   bindDetailEvents();
