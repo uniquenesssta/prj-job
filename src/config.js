@@ -10,9 +10,11 @@ const DATA_DIR = resolvePath(CONFIG.dataDir, "data");
 const UPLOAD_DIR = resolvePath(CONFIG.uploadDir, path.join("data", "uploads"));
 const REMARK_IMAGE_DIR = resolvePath(CONFIG.remarkImageDir, path.join("data", "uploads", "remark-images"));
 const DB_FILE = path.join(DATA_DIR, "app.db");
+const OPERATION_DB_FILE = path.join(DATA_DIR, "operation.db");
 const LEGACY_DB_FILE = path.join(DATA_DIR, "db.json");
 const LEGACY_COMMENT_FILE = path.join(DATA_DIR, "comments.json");
 const ARCHIVE_DIR = resolvePath(CONFIG.archiveDir, path.join("data", "archives"));
+const OPERATION_LOG_DIR = resolvePath(CONFIG.operationLogDir, path.join("data", "operation-logs"));
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_FILE)) return {};
@@ -37,6 +39,8 @@ module.exports = {
   DB_FILE,
   LEGACY_COMMENT_FILE,
   LEGACY_DB_FILE,
+  OPERATION_DB_FILE,
+  OPERATION_LOG_DIR,
   PORT,
   PUBLIC_DIR,
   REMARK_IMAGE_DIR,

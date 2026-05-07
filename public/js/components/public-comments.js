@@ -12,12 +12,25 @@ function renderPublicComments(task) {
         ${comments.length ? comments.map(renderPublicComment).join("") : '<div class="empty small-empty">还没有留言</div>'}
       </div>
       <form class="comment-form composer" id="publicCommentForm">
+        <div class="quick-replies">
+          ${quickReplyTexts().map((text) => `<button type="button" data-quick-reply="${escapeAttr(text)}">${escapeHtml(text)}</button>`).join("")}
+        </div>
         <textarea name="text" placeholder="写下沟通内容、修改意见或交付说明"></textarea>
         <button type="submit">发送留言</button>
         <p class="message" id="publicCommentMessage"></p>
       </form>
     </section>
   `;
+}
+
+function quickReplyTexts() {
+  if (state.user.role === "designer") {
+    return ["已收到", "需要补充尺寸", "请提供高清图", "初稿已上传", "需要修改", "已完成"];
+  }
+  if (state.user.role === "service") {
+    return ["客户已确认", "客户需要修改", "资料已补充", "请先出初稿", "订单信息已核对", "可以交付"];
+  }
+  return ["已收到", "请补充资料", "初稿已上传", "客户已确认", "需要修改", "已完成"];
 }
 
 function renderPublicComment(comment) {
@@ -38,6 +51,13 @@ function renderPublicComment(comment) {
 function bindPublicCommentEvents() {
   const form = document.querySelector("#publicCommentForm");
   if (!form) return;
+  form.querySelector(".quick-replies")?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-quick-reply]");
+    if (!button) return;
+    const textarea = form.querySelector("textarea[name='text']");
+    textarea.value = button.dataset.quickReply;
+    textarea.focus();
+  });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const message = document.querySelector("#publicCommentMessage");

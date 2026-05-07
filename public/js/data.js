@@ -1,8 +1,9 @@
 async function loadData() {
   const taskUrl = state.user?.role === "owner" && state.adminView === "archived" ? "/api/tasks?archived=1" : "/api/tasks";
-  const [usersData, tasksData] = await Promise.all([api("/api/users"), api(taskUrl)]);
+  const [usersData, tasksData, departmentsData] = await Promise.all([api("/api/users"), api(taskUrl), api("/api/departments")]);
   state.users = usersData.users;
   state.tasks = tasksData.tasks;
+  state.departments = departmentsData.departments || [];
   if (state.selectedTaskId && state.tasks.some((task) => task.id === state.selectedTaskId)) {
     await loadPersonalNotes(state.selectedTaskId);
   }

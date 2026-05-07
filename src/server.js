@@ -1,6 +1,7 @@
 const http = require("http");
 const os = require("os");
 const { PORT, REMARK_IMAGE_DIR, UPLOAD_DIR } = require("./config");
+const { scheduleDailyOperationLogArchive } = require("./operation-log-archive");
 const route = require("./router");
 const { ensureStorage } = require("./storage");
 
@@ -12,6 +13,7 @@ function getLanAddresses() {
 }
 
 ensureStorage();
+scheduleDailyOperationLogArchive();
 http.createServer(route).listen(PORT, "0.0.0.0", () => {
   console.log(`设计任务执行台已启动：http://localhost:${PORT}`);
   getLanAddresses().forEach((address) => console.log(`局域网访问：${address}`));

@@ -84,6 +84,7 @@ function renderTaskCard(task) {
         <span class="pill ${task.priority}">${priorityLabels[task.priority]}</span>
         <span>${task.dueDate || "未设截止"}</span>
       </button>
+      ${renderTaskSignals(task)}
       <div class="task-meta">
         <span>设计师：${escapeHtml(task.assigneeName)}</span>
         <span>${task.visibility === "private" ? "个人任务" : `客服：${escapeHtml(task.creatorName)}`}</span>
@@ -97,6 +98,29 @@ function renderTaskCard(task) {
       </div>
       ${preview ? `<div class="task-comment"><span>${preview.label}</span><p>${escapeHtml(preview.text)}</p></div>` : ""}
     </article>
+  `;
+}
+
+function renderTaskSignals(task) {
+  const messages = taskMessageCount(task);
+  const files = (task.attachments || []).length;
+  const dueLabel = task.status === "done"
+    ? "已完成"
+    : isOverdue(task)
+    ? "已超时"
+    : isDueToday(task)
+    ? "今日截止"
+    : task.dueDate
+    ? `截止 ${task.dueDate}`
+    : "未设截止";
+  const dueTone = task.status === "done" ? "done" : isOverdue(task) ? "danger" : isDueToday(task) ? "warning" : "neutral";
+  return `
+    <div class="task-signals">
+      <span class="signal ${dueTone}">${dueLabel}</span>
+      <span class="signal">留言/备注 ${messages}</span>
+      <span class="signal">附件 ${files}</span>
+      <span class="signal">更新 ${formatDateTime(task.updatedAt || task.createdAt || new Date().toISOString())}</span>
+    </div>
   `;
 }
 

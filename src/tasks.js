@@ -17,6 +17,7 @@ const {
   canRestoreTask,
   canUpdateTaskStatus,
 } = require("./permissions");
+const { insertOperationLog, markArchiveRecordRestored } = require("./repositories/system-repo");
 
 function handleGetTasks(req, res) {
   const user = requireUser(req, res);
@@ -79,6 +80,15 @@ async function handleCreateTask(req, res) {
   };
   db.tasks.push(task);
   writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "create_task",
+    targetType: "task",
+    targetId: task.id,
+    detail: task.visibility === "private" ? "新建个人任务" : "新建公共任务",
+    createdAt: now,
+  });
   broadcast("tasks-changed", { taskId: task.id });
   sendJson(res, 201, { task: enrichTask(db, task, comments) });
 }
@@ -139,6 +149,15 @@ async function handleUpdateTask(req, res, taskId) {
   }
   task.updatedAt = new Date().toISOString();
   writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: Object.hasOwn(body, "status") ? "update_task_status" : "update_task",
+    targetType: "task",
+    targetId: task.id,
+    detail: JSON.stringify(Object.keys(body)),
+    createdAt: task.updatedAt,
+  });
   broadcast("tasks-changed", { taskId: task.id });
   sendJson(res, 200, { task: enrichTask(db, task) });
 }
@@ -158,8 +177,19 @@ async function handleRestoreTask(req, res, taskId) {
   }
   task.archivedAt = "";
   task.archiveZipPath = "";
-  task.updatedAt = new Date().toISOString();
+  const now = new Date().toISOString();
+  task.updatedAt = now;
   writeDb(db);
+  markArchiveRecordRestored(task.id, now);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "restore_task",
+    targetType: "task",
+    targetId: task.id,
+    detail: "恢复归档任务",
+    createdAt: now,
+  });
   broadcast("tasks-changed", { taskId: task.id });
   sendJson(res, 200, { task: enrichTask(db, task) });
 }

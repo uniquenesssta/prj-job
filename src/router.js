@@ -11,6 +11,7 @@ const {
   requireUser,
 } = require("./auth");
 const { handleCreateComment, handleGetComments } = require("./comments");
+const { handleCreateDepartment, handleGetDepartments, handleUpdateDepartment } = require("./departments");
 const { handleEvents } = require("./events");
 const { handleDownload, handleInlineFile, handleUpload } = require("./files");
 const { handleGetPersonalNote, handlePutPersonalNote } = require("./notes");
@@ -38,6 +39,10 @@ function route(req, res) {
       }
       if (req.method === "GET" && pathname === "/api/users") return handleUsers(req, res);
       if (req.method === "POST" && pathname === "/api/users") return handleCreateUser(req, res);
+      if (req.method === "GET" && pathname === "/api/departments") return handleGetDepartments(req, res);
+      if (req.method === "POST" && pathname === "/api/departments") return handleCreateDepartment(req, res);
+      const departmentUpdate = pathname.match(/^\/api\/departments\/([^/]+)$/);
+      if (req.method === "PATCH" && departmentUpdate) return handleUpdateDepartment(req, res, departmentUpdate[1]);
       const userUpdate = pathname.match(/^\/api\/users\/([^/]+)$/);
       if (req.method === "PATCH" && userUpdate) return handleUpdateUser(req, res, userUpdate[1]);
       if (req.method === "POST" && pathname === "/api/archive") return handleArchiveDoneTasks(req, res);

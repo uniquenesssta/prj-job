@@ -13,7 +13,7 @@ const {
 const { listComments, replaceComments } = require("./repositories/comments-repo");
 const { insertFiles, listFiles } = require("./repositories/files-repo");
 const { insertTasks, listTasks } = require("./repositories/tasks-repo");
-const { insertUsers, listUsers } = require("./repositories/users-repo");
+const { defaultDepartmentId, insertUsers, listUsers } = require("./repositories/users-repo");
 
 function ensureStorage() {
   const db = ensureDatabase();
@@ -119,6 +119,19 @@ function migrateDb() {
     changed = true;
   }
 
+  db.users.forEach((user) => {
+    if (!user.departmentId) {
+      user.departmentId = defaultDepartmentId(user.role);
+      changed = true;
+    }
+    for (const field of ["customPermissions", "disabledAt", "deletedAt"]) {
+      if (user[field] === undefined) {
+        user[field] = field === "customPermissions" ? "{}" : "";
+        changed = true;
+      }
+    }
+  });
+
   const fallbackCreator = db.users.find((user) => user.role === "service")?.id || db.users[0]?.id;
   db.tasks.forEach((task) => {
     if (!task.creatorId) {
@@ -163,6 +176,10 @@ function makeUser(id, username, name, role, password) {
     username,
     name,
     role,
+    departmentId: defaultDepartmentId(role),
+    customPermissions: "{}",
+    disabledAt: "",
+    deletedAt: "",
     passwordHash: hashPassword(password),
   };
 }
@@ -220,6 +237,10 @@ function publicUser(user) {
     username: user.username,
     name: user.name,
     role: user.role,
+    departmentId: user.departmentId || defaultDepartmentId(user.role),
+    customPermissions: user.customPermissions || "{}",
+    disabledAt: user.disabledAt || "",
+    deletedAt: user.deletedAt || "",
   };
 }
 

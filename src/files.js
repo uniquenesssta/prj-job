@@ -7,6 +7,7 @@ const { createId, enrichTask, readDb, writeDb } = require("./storage");
 const { requireUser } = require("./auth");
 const { canDownloadTaskFile, canUploadToTask } = require("./permissions");
 const { enqueueUpload } = require("./upload-queue");
+const { insertOperationLog } = require("./repositories/system-repo");
 
 async function handleUpload(req, res, taskId) {
   const user = requireUser(req, res);
@@ -71,6 +72,15 @@ async function handleUpload(req, res, taskId) {
     nextTask.attachments.push(record.id);
     nextTask.updatedAt = new Date().toISOString();
     writeDb(nextDb);
+    insertOperationLog({
+      userId: user.id,
+      userName: user.name,
+      action: "upload_file",
+      targetType: "task",
+      targetId: nextTask.id,
+      detail: `${usage}: ${originalName}`,
+      createdAt: record.uploadedAt,
+    });
     broadcast("files-changed", { taskId: nextTask.id, fileId: record.id });
     sendJson(res, 201, { file: record, task: enrichTask(nextDb, nextTask) });
   });

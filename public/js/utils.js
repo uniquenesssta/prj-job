@@ -6,8 +6,37 @@ function filteredTasks(view) {
     const assigneeOk = state.assignee === "all" || task.assigneeId === state.assignee || view !== "designer" || state.user.role !== "owner";
     const text = `${task.title} ${task.description} ${task.remark || ""} ${task.assigneeName} ${task.creatorName} ${task.wechat} ${task.orderNo} ${task.taobaoId} ${task.taskType || ""} ${task.sizeSpec || ""} ${task.deliverFormat || ""} ${task.customerRequirement || ""}`.toLowerCase();
     const searchOk = !state.search || text.includes(state.search);
-    return archivedOk && designerViewOk && statusOk && assigneeOk && searchOk;
+    const quickOk = matchesQuickFilter(task);
+    return archivedOk && designerViewOk && statusOk && assigneeOk && searchOk && quickOk;
   });
+}
+
+function matchesQuickFilter(task) {
+  switch (state.quickFilter) {
+    case "urgent":
+      return task.priority === "urgent" && task.status !== "done";
+    case "today":
+      return isDueToday(task);
+    case "overdue":
+      return isOverdue(task);
+    case "messages":
+      return taskMessageCount(task) > 0;
+    case "files":
+      return (task.attachments || []).length > 0;
+    case "createdByMe":
+      return task.creatorId === state.user.id;
+    case "assignedToMe":
+      return task.assigneeId === state.user.id;
+    default:
+      return true;
+  }
+}
+
+function taskMessageCount(task) {
+  if (task.visibility === "private") {
+    return (state.personalNotesByTask[task.id] || task.remarkRecords || []).length;
+  }
+  return (task.comments || []).length;
 }
 
 function canEditBrief(task) {

@@ -1,10 +1,12 @@
 const state = {
   user: null,
   users: [],
+  departments: [],
   tasks: [],
   selectedTaskId: null,
   status: "all",
   assignee: "all",
+  quickFilter: "all",
   search: "",
   adminView: "overview",
   designerView: "public",
@@ -16,6 +18,16 @@ const state = {
   pendingRemarkImages: [],
   remarkImageViewer: null,
   remarkImageZoom: 1,
+  accountModal: "",
+  accountEditingUserId: "",
+  departmentEditingId: "",
+  accountSearch: "",
+  accountRoleFilter: "all",
+  accountStatusFilter: "all",
+  overviewExpandedPanel: "",
+  selectedDesignerId: "",
+  overviewTaskFilter: "all",
+  overviewSearch: "",
 };
 
 const statusLabels = {
@@ -39,6 +51,17 @@ const roleLabels = {
   service: "客服",
 };
 
+const quickFilterLabels = {
+  all: "全部",
+  urgent: "加急",
+  today: "今日截止",
+  overdue: "已超时",
+  messages: "有留言/备注",
+  files: "有附件",
+  createdByMe: "我创建",
+  assignedToMe: "我负责",
+};
+
 const loginView = document.querySelector("#loginView");
 const appView = document.querySelector("#appView");
 const loginForm = document.querySelector("#loginForm");
@@ -49,5 +72,6 @@ const adminTabs = document.querySelector("#adminTabs");
 const viewTabs = document.querySelector("#viewTabs");
 const assigneeFilter = document.querySelector("#assigneeFilter");
 const assigneeFilterWrap = document.querySelector("#assigneeFilterWrap");
+const quickFilters = document.querySelector("#quickFilters");
 const searchInput = document.querySelector("#searchInput");
 const layoutSwitch = document.querySelector("#designerLayoutSwitch");

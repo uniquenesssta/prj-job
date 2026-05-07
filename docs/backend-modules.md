@@ -31,3 +31,9 @@ data/
 ```
 
 旧的 `data/db.json` 和 `data/comments.json` 只作为迁移来源和历史备份保留，运行时以 `data/app.db` 为准。
+数据库内部已按三组拆分，详见 `docs/sqlite-data-map.md`：
+1. 用户、部门、权限。
+2. 任务、任务状态、任务字段、附件记录、留言、个人备注。
+3. 操作记录、维护记录、日志归档记录。
+
+现在物理存储也拆成两个库：`data/app.db` 是核心业务库，包含任务归档记录；`data/operation.db` 是操作、维护、日志归档记录库；`data/operation-logs/` 保存每日 0 点从 `operation.db` 导出的 TXT 日志。

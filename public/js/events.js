@@ -54,6 +54,13 @@ function bindStaticEvents() {
     render();
   });
 
+  quickFilters.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-quick-filter]");
+    if (!button) return;
+    state.quickFilter = button.dataset.quickFilter;
+    render();
+  });
+
   searchInput.addEventListener("input", () => {
     state.search = searchInput.value.trim().toLowerCase();
     render();

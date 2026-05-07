@@ -6,6 +6,7 @@ const { broadcast } = require("./events");
 const { enrichTask, publicUser, readComments, readDb, writeDb, writeJsonFile } = require("./storage");
 const { requireUser } = require("./auth");
 const { canArchiveTask } = require("./permissions");
+const { insertArchiveRecord, insertOperationLog } = require("./repositories/system-repo");
 const {
   formatArchiveStamp,
   formatDate,
@@ -38,7 +39,7 @@ function handleArchiveDoneTasks(req, res) {
   }
   try {
     const result = createTaskArchive(db, tasks);
-    markTasksArchived(db, tasks, result.zipPath);
+    markTasksArchived(db, tasks, result, user);
     sendJson(res, 200, result);
   } catch (error) {
     sendError(res, 500, `归档失败：${error.message}`);
@@ -72,21 +73,45 @@ function handleArchiveOneTask(req, res, taskId) {
   }
   try {
     const result = createTaskArchive(db, [task]);
-    markTasksArchived(db, [task], result.zipPath);
+    markTasksArchived(db, [task], result, user);
     sendJson(res, 200, result);
   } catch (error) {
     sendError(res, 500, `归档失败：${error.message}`);
   }
 }
 
-function markTasksArchived(db, tasks, zipPath) {
+function markTasksArchived(db, tasks, archiveResult, user) {
   const now = new Date().toISOString();
+  const comments = readComments();
   for (const task of tasks) {
     task.archivedAt = now;
-    task.archiveZipPath = zipPath;
+    task.archiveZipPath = archiveResult.zipPath;
     task.updatedAt = now;
   }
   writeDb(db);
+  for (const task of tasks) {
+    const enriched = enrichTask(db, task, comments);
+    insertArchiveRecord({
+      taskId: task.id,
+      archivePath: archiveResult.archivePath,
+      zipPath: archiveResult.zipPath,
+      archivedBy: user.id,
+      archivedByName: user.name,
+      archivedAt: now,
+      taskSnapshot: enriched,
+      fileCount: (enriched.attachments || []).length,
+      commentCount: (enriched.comments || []).length,
+    });
+    insertOperationLog({
+      userId: user.id,
+      userName: user.name,
+      action: "archive_task",
+      targetType: "task",
+      targetId: task.id,
+      detail: `归档到 ${archiveResult.zipPath}`,
+      createdAt: now,
+    });
+  }
   broadcast("tasks-changed", {});
 }
 

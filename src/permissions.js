@@ -73,6 +73,14 @@ function canManageUsers(user) {
   return isOwner(user);
 }
 
+function canManageDepartments(user) {
+  return isOwner(user);
+}
+
+function canManagePermissions(user) {
+  return isOwner(user);
+}
+
 function canArchiveTask(user, task) {
   return isOwner(user) && task?.status === "done" && !task.archivedAt;
 }
@@ -89,6 +97,8 @@ module.exports = {
   canCreatePublicTask,
   canDownloadTaskFile,
   canEditTaskBrief,
+  canManageDepartments,
+  canManagePermissions,
   canManageUsers,
   canReadPersonalNote,
   canRestoreTask,

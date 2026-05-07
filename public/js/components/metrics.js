@@ -19,10 +19,30 @@ function renderHeader(view) {
 }
 
 function renderToolbar(view) {
-  viewTabs.hidden = view === "account" || view === "overview";
+  const taskView = !["account", "overview"].includes(view);
+  viewTabs.hidden = !taskView;
   assigneeFilterWrap.hidden = view !== "designer" || state.user.role !== "owner";
-  searchInput.closest("label").hidden = view === "account" || view === "overview";
+  quickFilters.hidden = !taskView;
+  quickFilters.innerHTML = taskView ? renderQuickFilters(view) : "";
+  searchInput.closest("label").hidden = !taskView;
   layoutSwitch.hidden = !["designer", "archived"].includes(view);
+}
+
+function renderQuickFilters(view) {
+  return quickFilterOptions(view)
+    .map((key) => `
+      <button class="${state.quickFilter === key ? "active" : ""}" type="button" data-quick-filter="${key}">
+        ${quickFilterLabels[key]}
+      </button>
+    `)
+    .join("");
+}
+
+function quickFilterOptions(view) {
+  const options = ["all", "urgent", "today", "overdue", "messages", "files"];
+  if (state.user.role !== "owner") options.push("createdByMe");
+  if (state.user.role === "designer" || view === "designer") options.push("assignedToMe");
+  return options;
 }
 
 function renderMetrics(view) {

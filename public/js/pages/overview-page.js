@@ -1,18 +1,22 @@
 function renderOverviewPage() {
   const tasks = state.tasks.filter((task) => !task.archivedAt);
   const dashboard = buildDashboard(tasks);
-  workspace.className = "workspace overview";
+  workspace.className = "workspace overview overview-workspace";
   workspace.innerHTML = `
     <section class="panel overview-main">
       <div class="section-head">
         <div>
           <p class="eyebrow">Overview</p>
-          <h2>团队负载</h2>
+          <h2>管理总览</h2>
         </div>
       </div>
-      <div class="overview-grid">
-        ${dashboard.designerRows.map(renderDesignerLoadCard).join("")}
+      <div class="overview-entry-grid">
+        ${renderOverviewEntry("teamLoad", "团队负载", dashboard.designerRows.length, "查看设计师压力、超时和待审")}
+        ${renderOverviewEntry("globalTasks", "全局任务池", tasks.length, "筛选全部公共和个人任务")}
+        ${renderOverviewEntry("service", "客服录单", dashboard.serviceRows.reduce((sum, row) => sum + row.created.length, 0), "在当前页创建公共任务")}
+        ${renderOverviewEntry("designer", "设计师视图", dashboard.designerRows.reduce((sum, row) => sum + row.active, 0), "查看每位设计师任务")}
       </div>
+      ${renderOverviewExpandedPanel(dashboard, tasks)}
     </section>
     <aside class="panel overview-side">
       <div class="section-head">
@@ -25,23 +29,157 @@ function renderOverviewPage() {
       ${renderRiskList("今日截止", dashboard.todayTasks, "warning")}
       ${renderRiskList("待审核", dashboard.reviewTasks, "review")}
     </aside>
-    <aside class="panel overview-side">
-      <div class="section-head">
+  `;
+  bindOverviewEvents();
+  if (state.overviewExpandedPanel === "service") bindOverviewTaskForm();
+}
+
+function renderOverviewEntry(panel, title, count, hint) {
+  return `
+    <button class="overview-entry ${state.overviewExpandedPanel === panel ? "active" : ""}" type="button" data-overview-panel="${panel}">
+      <span>${title}</span>
+      <strong>${count}</strong>
+      <small>${hint}</small>
+    </button>
+  `;
+}
+
+function renderOverviewExpandedPanel(dashboard, tasks) {
+  switch (state.overviewExpandedPanel) {
+    case "service":
+      return renderOverviewServicePanel();
+    case "designer":
+      return renderOverviewDesignerPanel(dashboard);
+    case "globalTasks":
+      return renderOverviewGlobalTasksPanel(tasks);
+    case "teamLoad":
+      return renderOverviewTeamLoadPanel(dashboard);
+    case "designerTasks":
+      return renderOverviewDesignerTasksPanel(tasks);
+    default:
+      return '<div class="overview-empty-hint">选择上方模块，在当前页展开处理。</div>';
+  }
+}
+
+function renderOverviewServicePanel() {
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
         <div>
-          <p class="eyebrow">Service</p>
+          <p class="eyebrow">Service Form</p>
           <h2>客服录单</h2>
         </div>
+      </div>
+      ${renderTaskForm()}
+    </section>
+  `;
+}
+
+function renderOverviewDesignerPanel(dashboard) {
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Designers</p>
+          <h2>设计师视图</h2>
+        </div>
+      </div>
+      <div class="overview-grid">
+        ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无设计师账号</div>'}
+      </div>
+    </section>
+  `;
+}
+
+function renderOverviewTeamLoadPanel(dashboard) {
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Team Load</p>
+          <h2>团队负载详情</h2>
+        </div>
+      </div>
+      <div class="overview-grid">
+        ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无负载数据</div>'}
       </div>
       <div class="overview-list">
         ${dashboard.serviceRows.map(renderServiceLoadRow).join("") || '<div class="empty small-empty">暂无客服账号</div>'}
       </div>
-      <div class="overview-actions">
-        <button class="button" type="button" data-overview-view="designer">查看设计师视图</button>
-        <button class="button secondary" type="button" data-overview-view="service">查看客服视图</button>
-      </div>
-    </aside>
+    </section>
   `;
-  bindOverviewEvents();
+}
+
+function renderOverviewGlobalTasksPanel(tasks) {
+  const filtered = filterOverviewTasks(tasks);
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Global Tasks</p>
+          <h2>全局任务池</h2>
+        </div>
+      </div>
+      ${renderOverviewTaskFilters()}
+      ${renderTaskList(filtered)}
+    </section>
+  `;
+}
+
+function renderOverviewDesignerTasksPanel(tasks) {
+  const designer = state.users.find((user) => user.id === state.selectedDesignerId);
+  const filtered = filterOverviewTasks(tasks.filter((task) => task.assigneeId === state.selectedDesignerId));
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Designer Tasks</p>
+          <h2>${designer ? escapeHtml(designer.name) : "设计师"} 的任务</h2>
+        </div>
+      </div>
+      ${renderOverviewTaskFilters()}
+      ${renderTaskList(filtered)}
+    </section>
+  `;
+}
+
+function renderOverviewTaskFilters() {
+  const filters = [
+    ["all", "全部"],
+    ["public", "公共"],
+    ["private", "个人"],
+    ["urgent", "加急"],
+    ["overdue", "超时"],
+    ["review", "待审"],
+    ["doing", "进行中"],
+    ["done", "已完成"],
+    ["todo", "待开始"],
+  ];
+  return `
+    <div class="overview-task-tools">
+      <div class="quick-filters">
+        ${filters.map(([key, label]) => `<button class="${state.overviewTaskFilter === key ? "active" : ""}" type="button" data-overview-filter="${key}">${label}</button>`).join("")}
+      </div>
+      <label class="search-field">
+        <span>搜索</span>
+        <input id="overviewSearchInput" value="${escapeAttr(state.overviewSearch)}" placeholder="任务、微信、订单、设计师、客服" />
+      </label>
+    </div>
+  `;
+}
+
+function filterOverviewTasks(tasks) {
+  return tasks.filter((task) => {
+    const filterOk = state.overviewTaskFilter === "all"
+      || (state.overviewTaskFilter === "public" && task.visibility !== "private")
+      || (state.overviewTaskFilter === "private" && task.visibility === "private")
+      || (state.overviewTaskFilter === "urgent" && task.priority === "urgent")
+      || (state.overviewTaskFilter === "overdue" && isOverdue(task))
+      || task.status === state.overviewTaskFilter;
+    const text = `${task.title} ${task.description} ${task.wechat} ${task.orderNo} ${task.taobaoId} ${task.assigneeName} ${task.creatorName}`.toLowerCase();
+    const searchOk = !state.overviewSearch || text.includes(state.overviewSearch);
+    return filterOk && searchOk;
+  });
 }
 
 function buildDashboard(tasks) {
@@ -51,14 +189,19 @@ function buildDashboard(tasks) {
     designerRows: designers.map((user) => {
       const assigned = tasks.filter((task) => task.assigneeId === user.id && task.visibility !== "private");
       const privateTasks = tasks.filter((task) => task.assigneeId === user.id && task.visibility === "private");
+      const allTasks = assigned.concat(privateTasks);
       return {
         user,
         assigned,
         privateTasks,
-        active: assigned.filter((task) => !["done", "blocked"].includes(task.status)).length,
-        urgent: assigned.filter((task) => task.priority === "urgent" && task.status !== "done").length,
-        overdue: assigned.filter(isOverdue).length,
-        review: assigned.filter((task) => task.status === "review").length,
+        allTasks,
+        active: allTasks.filter((task) => !["done", "blocked"].includes(task.status)).length,
+        urgent: allTasks.filter((task) => task.priority === "urgent" && task.status !== "done").length,
+        overdue: allTasks.filter(isOverdue).length,
+        review: allTasks.filter((task) => task.status === "review").length,
+        doing: allTasks.filter((task) => task.status === "doing").length,
+        done: allTasks.filter((task) => task.status === "done").length,
+        todo: allTasks.filter((task) => task.status === "todo").length,
       };
     }).sort((a, b) => b.active - a.active || b.urgent - a.urgent || b.overdue - a.overdue),
     serviceRows: services.map((user) => {
@@ -78,11 +221,10 @@ function buildDashboard(tasks) {
 }
 
 function renderDesignerLoadCard(row) {
-  const total = row.assigned.length;
-  const done = row.assigned.filter((task) => task.status === "done").length;
-  const percent = total ? Math.round((done / total) * 100) : 0;
+  const total = row.allTasks.length;
+  const percent = total ? Math.round((row.done / total) * 100) : 0;
   return `
-    <article class="load-card ${row.overdue ? "danger" : row.urgent ? "warning" : ""}">
+    <button class="load-card ${row.overdue ? "danger" : row.urgent ? "warning" : ""}" type="button" data-designer-id="${row.user.id}">
       <div class="load-head">
         <div>
           <strong>${escapeHtml(row.user.name)}</strong>
@@ -91,14 +233,14 @@ function renderDesignerLoadCard(row) {
         <b>${row.active}</b>
       </div>
       <div class="load-stats">
-        <span>公共 ${total}</span>
+        <span>公共 ${row.assigned.length}</span>
         <span>个人 ${row.privateTasks.length}</span>
         <span>加急 ${row.urgent}</span>
         <span>超时 ${row.overdue}</span>
         <span>待审 ${row.review}</span>
       </div>
       <div class="progress-line" style="--progress:${percent}%"><span></span></div>
-    </article>
+    </button>
   `;
 }
 
@@ -138,22 +280,60 @@ function renderRiskTask(task) {
 }
 
 function bindOverviewEvents() {
+  workspace.querySelectorAll("[data-overview-panel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const panel = button.dataset.overviewPanel;
+      state.overviewExpandedPanel = state.overviewExpandedPanel === panel ? "" : panel;
+      state.selectedDesignerId = "";
+      state.overviewTaskFilter = "all";
+      state.overviewSearch = "";
+      render();
+    });
+  });
+  workspace.querySelectorAll("[data-designer-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const designerId = button.dataset.designerId;
+      if (state.overviewExpandedPanel === "designerTasks" && state.selectedDesignerId === designerId) {
+        state.overviewExpandedPanel = "";
+        state.selectedDesignerId = "";
+      } else {
+        state.overviewExpandedPanel = "designerTasks";
+        state.selectedDesignerId = designerId;
+      }
+      state.overviewTaskFilter = "all";
+      state.overviewSearch = "";
+      render();
+    });
+  });
   workspace.querySelectorAll("[data-overview-task]").forEach((button) => {
     button.addEventListener("click", async () => {
-      state.adminView = "designer";
+      state.overviewExpandedPanel = "globalTasks";
       state.selectedTaskId = button.dataset.overviewTask;
-      adminTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item.dataset.adminView === "designer"));
       await loadPersonalNotes(state.selectedTaskId);
       render();
     });
   });
-  workspace.querySelectorAll("[data-overview-view]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      state.adminView = button.dataset.overviewView;
-      state.selectedTaskId = null;
-      adminTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item.dataset.adminView === state.adminView));
-      await loadData();
+  workspace.querySelector("#taskList")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-task-id]");
+    if (!button) return;
+    state.selectedTaskId = button.dataset.taskId;
+    await loadPersonalNotes(state.selectedTaskId);
+    state.adminView = "designer";
+    adminTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item.dataset.adminView === "designer"));
+    render();
+  });
+  workspace.querySelectorAll("[data-overview-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.overviewTaskFilter = button.dataset.overviewFilter;
       render();
     });
   });
+  workspace.querySelector("#overviewSearchInput")?.addEventListener("input", (event) => {
+    state.overviewSearch = event.currentTarget.value.trim().toLowerCase();
+    render();
+  });
+}
+
+function bindOverviewTaskForm() {
+  bindTaskForm();
 }

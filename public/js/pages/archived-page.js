@@ -8,11 +8,16 @@ function renderArchivedPage() {
           <p class="eyebrow">Archived Tasks</p>
           <h2>归档项目</h2>
         </div>
-        <button class="button secondary" id="refreshTasks" type="button">刷新</button>
+        <div class="section-actions">
+          <button class="button" id="archiveButton" type="button">归档全部已完成</button>
+          <button class="button secondary" id="refreshTasks" type="button">刷新</button>
+        </div>
       </div>
+      <p class="message" id="archiveMessage"></p>
       ${renderTaskList(tasks)}
     </section>
     <aside class="detail-panel" id="detailPanel">${renderDetail()}</aside>
   `;
   bindTaskPageEvents();
+  bindArchiveButton();
 }

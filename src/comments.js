@@ -10,6 +10,7 @@ const {
 } = require("./storage");
 const { requireUser } = require("./auth");
 const { canAccessTask, canCommentTask } = require("./permissions");
+const { insertOperationLog } = require("./repositories/system-repo");
 
 function handleGetComments(req, res, taskId) {
   const user = requireUser(req, res);
@@ -70,6 +71,15 @@ async function handleCreateComment(req, res, taskId) {
   task.updatedAt = comment.createdAt;
   writeComments(comments);
   writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "create_comment",
+    targetType: "task",
+    targetId: taskId,
+    detail: text.slice(0, 120),
+    createdAt: comment.createdAt,
+  });
   broadcast("tasks-changed", { taskId });
   sendJson(res, 201, { comment, task: enrichTask(db, task, comments) });
 }

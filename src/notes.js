@@ -10,6 +10,7 @@ const { parseMultipartParts } = require("./files");
 const { isRemarkImage, saveRemarkImage } = require("./remarks");
 const { requireUser } = require("./auth");
 const { canAccessTask, canReadPersonalNote, canWritePersonalNote } = require("./permissions");
+const { insertOperationLog } = require("./repositories/system-repo");
 
 function handleGetPersonalNote(req, res, taskId) {
   const user = requireUser(req, res);
@@ -64,6 +65,15 @@ async function handlePutPersonalNote(req, res, taskId) {
     createdAt: now,
   };
   insertPersonalNote(note);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "create_personal_note",
+    targetType: "task",
+    targetId: taskId,
+    detail: text.slice(0, 120),
+    createdAt: now,
+  });
   broadcast("tasks-changed", { taskId });
   sendJson(res, 201, { note: enrichPersonalNote(db, note) });
 }
@@ -109,6 +119,15 @@ async function handleMultipartPersonalNote(req, res, user, taskId) {
     task.updatedAt = now;
     writeDb(db);
     insertPersonalNote(note);
+    insertOperationLog({
+      userId: user.id,
+      userName: user.name,
+      action: "create_personal_note",
+      targetType: "task",
+      targetId: taskId,
+      detail: `文字 ${text.length} 字，图片 ${imageRecords.length} 张`,
+      createdAt: now,
+    });
     broadcast("tasks-changed", { taskId });
     sendJson(res, 201, { note: enrichPersonalNote(readDb(), note) });
   });
