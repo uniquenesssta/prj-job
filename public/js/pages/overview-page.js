@@ -10,11 +10,9 @@ function renderOverviewPage() {
           <h2>管理总览</h2>
         </div>
       </div>
-      <div class="overview-entry-grid">
-        ${renderOverviewEntry("teamLoad", "团队负载", dashboard.designerRows.length, "查看设计师压力、超时和待审")}
+      <div class="overview-entry-grid compact-overview-entry-grid">
+        ${renderOverviewEntry("teamLoad", "团队负载", dashboard.designerRows.length + dashboard.serviceRows.length, "设计师压力与客服接单情况")}
         ${renderOverviewEntry("globalTasks", "全局任务池", tasks.length, "筛选全部公共和个人任务")}
-        ${renderOverviewEntry("service", "客服录单", dashboard.serviceRows.reduce((sum, row) => sum + row.created.length, 0), "在当前页创建公共任务")}
-        ${renderOverviewEntry("designer", "设计师视图", dashboard.designerRows.reduce((sum, row) => sum + row.active, 0), "查看每位设计师任务")}
       </div>
       ${renderOverviewExpandedPanel(dashboard, tasks)}
     </section>
@@ -29,11 +27,8 @@ function renderOverviewPage() {
       ${renderRiskList("今日截止", dashboard.todayTasks, "warning")}
       ${renderRiskList("待审核", dashboard.reviewTasks, "review")}
     </aside>
-    ${renderTaskDetailModal()}
   `;
   bindOverviewEvents();
-  if (state.overviewExpandedPanel === "service") bindOverviewTaskForm();
-  if (state.taskDetailModalOpen) bindDetailEvents();
 }
 
 function renderOverviewEntry(panel, title, count, hint) {
@@ -48,49 +43,17 @@ function renderOverviewEntry(panel, title, count, hint) {
 
 function renderOverviewExpandedPanel(dashboard, tasks) {
   switch (state.overviewExpandedPanel) {
-    case "service":
-      return renderOverviewServicePanel();
-    case "designer":
-      return renderOverviewDesignerPanel(dashboard);
     case "globalTasks":
       return renderOverviewGlobalTasksPanel(tasks);
     case "teamLoad":
       return renderOverviewTeamLoadPanel(dashboard);
     case "designerTasks":
       return renderOverviewDesignerTasksPanel(tasks);
+    case "serviceTasks":
+      return renderOverviewServiceTasksPanel(tasks);
     default:
       return '<div class="overview-empty-hint">选择上方模块，在当前页展开处理。</div>';
   }
-}
-
-function renderOverviewServicePanel() {
-  return `
-    <section class="overview-expanded">
-      <div class="section-head compact-head">
-        <div>
-          <p class="eyebrow">Service Form</p>
-          <h2>客服录单</h2>
-        </div>
-      </div>
-      ${renderTaskForm()}
-    </section>
-  `;
-}
-
-function renderOverviewDesignerPanel(dashboard) {
-  return `
-    <section class="overview-expanded">
-      <div class="section-head compact-head">
-        <div>
-          <p class="eyebrow">Designers</p>
-          <h2>设计师视图</h2>
-        </div>
-      </div>
-      <div class="overview-grid load-grid">
-        ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无设计师账号</div>'}
-      </div>
-    </section>
-  `;
 }
 
 function renderOverviewTeamLoadPanel(dashboard) {
@@ -102,12 +65,24 @@ function renderOverviewTeamLoadPanel(dashboard) {
           <h2>团队负载详情</h2>
         </div>
       </div>
-      <div class="overview-grid load-grid">
-        ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无负载数据</div>'}
-      </div>
-      <div class="overview-list">
-        ${dashboard.serviceRows.map(renderServiceLoadRow).join("") || '<div class="empty small-empty">暂无客服账号</div>'}
-      </div>
+      <section class="load-section">
+        <div class="load-section-head">
+          <strong>设计师执行负载</strong>
+          <span>${dashboard.designerRows.length}</span>
+        </div>
+        <div class="overview-grid load-grid">
+          ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无设计师负载数据</div>'}
+        </div>
+      </section>
+      <section class="load-section">
+        <div class="load-section-head">
+          <strong>客服接单负载</strong>
+          <span>${dashboard.serviceRows.length}</span>
+        </div>
+        <div class="overview-grid service-load-grid">
+          ${dashboard.serviceRows.map(renderServiceLoadCard).join("") || '<div class="empty small-empty">暂无客服账号</div>'}
+        </div>
+      </section>
     </section>
   `;
 }
@@ -137,6 +112,23 @@ function renderOverviewDesignerTasksPanel(tasks) {
         <div>
           <p class="eyebrow">Designer Tasks</p>
           <h2>${designer ? escapeHtml(designer.name) : "设计师"} 的任务</h2>
+        </div>
+      </div>
+      ${renderOverviewTaskFilters()}
+      ${renderTaskList(filtered)}
+    </section>
+  `;
+}
+
+function renderOverviewServiceTasksPanel(tasks) {
+  const service = state.users.find((user) => user.id === state.selectedServiceId);
+  const filtered = filterOverviewTasks(tasks.filter((task) => task.creatorId === state.selectedServiceId && task.visibility !== "private"));
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Service Tasks</p>
+          <h2>${service ? escapeHtml(service.name) : "客服"} 发布的任务</h2>
         </div>
       </div>
       ${renderOverviewTaskFilters()}
@@ -268,206 +260,6 @@ function renderLoadNumberGrid(row) {
   `;
 }
 
-function renderServiceLoadRow(row) {
-  return `
-    <article class="overview-row">
-      <div>
-        <strong>${escapeHtml(row.user.name)}</strong>
-        <span>创建 ${row.created.length}，进行 ${row.active}，加急 ${row.urgent}，超时 ${row.overdue}</span>
-      </div>
-      <b>${row.created.length}</b>
-    </article>
-  `;
-}
-
-function renderRiskList(title, tasks, tone) {
-  return `
-    <section class="risk-block ${tone}">
-      <div class="risk-head">
-        <strong>${title}</strong>
-        <span>${tasks.length}</span>
-      </div>
-      <div class="overview-list">
-        ${tasks.length ? tasks.map(renderRiskTask).join("") : '<div class="empty small-empty">暂无任务</div>'}
-      </div>
-    </section>
-  `;
-}
-
-function renderRiskTask(task) {
-  return `
-    <button class="overview-task" type="button" data-overview-task="${task.id}">
-      <strong>${escapeHtml(task.title)}</strong>
-      <span>${escapeHtml(task.assigneeName || "未分配")} · ${task.dueDate || "未设截止"} · ${priorityLabels[task.priority] || task.priority}</span>
-    </button>
-  `;
-}
-
-function bindOverviewEvents() {
-  workspace.querySelectorAll("[data-overview-panel]").forEach((button) => {
-    button.addEventListener("click", () => {
-      toggleOverviewPanel(button.dataset.overviewPanel);
-      render();
-    });
-  });
-  workspace.querySelectorAll("[data-designer-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      toggleOverviewDesignerPanel(button.dataset.designerId);
-      render();
-    });
-  });
-  workspace.querySelectorAll("[data-overview-task]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      openOverviewPanel("globalTasks");
-      state.selectedTaskId = button.dataset.overviewTask;
-      state.taskDetailModalOpen = true;
-      await loadPersonalNotes(state.selectedTaskId);
-      render();
-    });
-  });
-  workspace.querySelector("#taskList")?.addEventListener("click", async (event) => {
-    const deleteButton = event.target.closest("button[data-delete-task-id]");
-    if (deleteButton) {
-      await deleteTask(deleteButton.dataset.deleteTaskId);
-      return;
-    }
-    const button = event.target.closest("button[data-task-id]");
-    if (!button) return;
-    state.selectedTaskId = button.dataset.taskId;
-    state.taskDetailModalOpen = true;
-    await loadPersonalNotes(state.selectedTaskId);
-    render();
-  });
-  workspace.querySelectorAll("[data-overview-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.overviewTaskFilter = button.dataset.overviewFilter;
-      render();
-    });
-  });
-  workspace.querySelector("#closeTaskDetailModal")?.addEventListener("click", closeTaskDetailModal);
-  workspace.querySelector("#taskDetailBackdrop")?.addEventListener("click", (event) => {
-    if (event.target.id === "taskDetailBackdrop") closeTaskDetailModal();
-  });
-  workspace.querySelector("#overviewSearchInput")?.addEventListener("input", (event) => {
-    state.overviewSearch = event.currentTarget.value.trim().toLowerCase();
-    render();
-  });
-}
-
-function closeTaskDetailModal() {
-  state.taskDetailModalOpen = false;
-  state.selectedTaskId = null;
-  state.pendingRemarkImages = [];
-  render();
-}
-
-function bindOverviewTaskForm() {
-  bindTaskForm();
-}
-
-function renderOverviewPage() {
-  const tasks = state.tasks.filter((task) => !task.archivedAt);
-  const dashboard = buildDashboard(tasks);
-  workspace.className = "workspace overview overview-workspace";
-  workspace.innerHTML = `
-    <section class="panel overview-main">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Overview</p>
-          <h2>管理总览</h2>
-        </div>
-      </div>
-      <div class="overview-entry-grid compact-overview-entry-grid">
-        ${renderOverviewEntry("teamLoad", "团队负载", dashboard.designerRows.length + dashboard.serviceRows.length, "设计师压力与客服接单情况")}
-        ${renderOverviewEntry("globalTasks", "全局任务池", tasks.length, "筛选全部公共和个人任务")}
-      </div>
-      ${renderOverviewExpandedPanel(dashboard, tasks)}
-    </section>
-    <aside class="panel overview-side">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Risk</p>
-          <h2>需要关注</h2>
-        </div>
-      </div>
-      ${renderRiskList("已超时", dashboard.overdueTasks, "danger")}
-      ${renderRiskList("今日截止", dashboard.todayTasks, "warning")}
-      ${renderRiskList("待审核", dashboard.reviewTasks, "review")}
-    </aside>
-    ${renderTaskDetailModal()}
-  `;
-  bindOverviewEvents();
-  if (state.taskDetailModalOpen) bindDetailEvents();
-}
-
-function renderOverviewExpandedPanel(dashboard, tasks) {
-  switch (state.overviewExpandedPanel) {
-    case "globalTasks":
-      return renderOverviewGlobalTasksPanel(tasks);
-    case "teamLoad":
-      return renderOverviewTeamLoadPanel(dashboard);
-    case "designerTasks":
-      return renderOverviewDesignerTasksPanel(tasks);
-    default:
-      return '<div class="overview-empty-hint">选择上方模块，在当前页展开处理。</div>';
-  }
-}
-
-function renderOverviewTeamLoadPanel(dashboard) {
-  return `
-    <section class="overview-expanded">
-      <div class="section-head compact-head">
-        <div>
-          <p class="eyebrow">Team Load</p>
-          <h2>团队负载详情</h2>
-        </div>
-      </div>
-      <section class="load-section">
-        <div class="load-section-head">
-          <strong>设计师执行负载</strong>
-          <span>${dashboard.designerRows.length}</span>
-        </div>
-        <div class="overview-grid load-grid">
-          ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无设计师负载数据</div>'}
-        </div>
-      </section>
-      <section class="load-section">
-        <div class="load-section-head">
-          <strong>客服接单负载</strong>
-          <span>${dashboard.serviceRows.length}</span>
-        </div>
-        <div class="overview-grid service-load-grid">
-          ${dashboard.serviceRows.map(renderServiceLoadCard).join("") || '<div class="empty small-empty">暂无客服账号</div>'}
-        </div>
-      </section>
-    </section>
-  `;
-}
-
-function renderServiceLoadCard(row) {
-  const tone = row.overdue ? "danger" : row.urgent ? "warning" : "";
-  return `
-    <article class="load-card service-load-card ${tone}">
-      <div class="load-head">
-        <div>
-          <strong>${escapeHtml(row.user.name)}</strong>
-          <span>${escapeHtml(row.user.username)}</span>
-        </div>
-        <span class="load-total">
-          <b>${row.created.length}</b>
-          <small>接单数量</small>
-        </span>
-      </div>
-      <div class="load-number-grid service-load-numbers">
-        <span class="load-number load-public"><b>${row.created.length}</b><small>接单</small></span>
-        <span class="load-number load-doing"><b>${row.active}</b><small>进行中</small></span>
-        <span class="load-number load-overdue"><b>${row.overdue}</b><small>超时</small></span>
-        <span class="load-number load-urgent"><b>${row.urgent}</b><small>加急</small></span>
-      </div>
-    </article>
-  `;
-}
-
 function renderServiceLoadCard(row) {
   const tone = row.overdue ? "danger" : row.urgent ? "warning" : "";
   const selected = state.overviewExpandedPanel === "serviceTasks" && state.selectedServiceId === row.user.id ? "selected" : "";
@@ -493,35 +285,26 @@ function renderServiceLoadCard(row) {
   `;
 }
 
-function renderOverviewExpandedPanel(dashboard, tasks) {
-  switch (state.overviewExpandedPanel) {
-    case "globalTasks":
-      return renderOverviewGlobalTasksPanel(tasks);
-    case "teamLoad":
-      return renderOverviewTeamLoadPanel(dashboard);
-    case "designerTasks":
-      return renderOverviewDesignerTasksPanel(tasks);
-    case "serviceTasks":
-      return renderOverviewServiceTasksPanel(tasks);
-    default:
-      return '<div class="overview-empty-hint">选择上方模块，在当前页展开处理。</div>';
-  }
+function renderRiskList(title, tasks, tone) {
+  return `
+    <section class="risk-block ${tone}">
+      <div class="risk-head">
+        <strong>${title}</strong>
+        <span>${tasks.length}</span>
+      </div>
+      <div class="overview-list">
+        ${tasks.length ? tasks.map(renderRiskTask).join("") : '<div class="empty small-empty">暂无任务</div>'}
+      </div>
+    </section>
+  `;
 }
 
-function renderOverviewServiceTasksPanel(tasks) {
-  const service = state.users.find((user) => user.id === state.selectedServiceId);
-  const filtered = filterOverviewTasks(tasks.filter((task) => task.creatorId === state.selectedServiceId && task.visibility !== "private"));
+function renderRiskTask(task) {
   return `
-    <section class="overview-expanded">
-      <div class="section-head compact-head">
-        <div>
-          <p class="eyebrow">Service Tasks</p>
-          <h2>${service ? escapeHtml(service.name) : "客服"} 发布的任务</h2>
-        </div>
-      </div>
-      ${renderOverviewTaskFilters()}
-      ${renderTaskList(filtered)}
-    </section>
+    <button class="overview-task" type="button" data-overview-task="${task.id}">
+      <strong>${escapeHtml(task.title)}</strong>
+      <span>${escapeHtml(task.assigneeName || "未分配")} · ${task.dueDate || "未设截止"} · ${priorityLabels[task.priority] || task.priority}</span>
+    </button>
   `;
 }
 
@@ -571,10 +354,6 @@ function bindOverviewEvents() {
       state.overviewTaskFilter = button.dataset.overviewFilter;
       render();
     });
-  });
-  workspace.querySelector("#closeTaskDetailModal")?.addEventListener("click", closeTaskDetailModal);
-  workspace.querySelector("#taskDetailBackdrop")?.addEventListener("click", (event) => {
-    if (event.target.id === "taskDetailBackdrop") closeTaskDetailModal();
   });
   workspace.querySelector("#overviewSearchInput")?.addEventListener("input", (event) => {
     state.overviewSearch = event.currentTarget.value.trim().toLowerCase();

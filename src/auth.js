@@ -239,10 +239,13 @@ function normalizeCustomPermissions(value) {
 }
 
 function normalizePermissionObject(value) {
-  return {
-    extra: Array.isArray(value.extra) ? value.extra.map(String) : [],
-    disabled: Array.isArray(value.disabled) ? value.disabled.map(String) : [],
-  };
+  const extra = normalizePermissionCodes(value.extra);
+  const disabled = normalizePermissionCodes(value.disabled).filter((code) => !extra.includes(code));
+  return { extra, disabled };
+}
+
+function normalizePermissionCodes(values) {
+  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item).trim()))].filter(Boolean);
 }
 
 module.exports = {

@@ -125,110 +125,85 @@ function renderAccountModal() {
   `;
 }
 
-function renderPermissionModalLegacy(user) {
-  if (!user) return "";
-  const custom = parsePermissionObject(user.customPermissions);
-  const department = departmentById(user.departmentId);
-  const departmentPreset = parsePermissionObject(department?.permissionPreset);
-  const finalCodes = resolvePermissionPreview(user, department);
-  return `
-    <div class="modal-backdrop" id="accountModalBackdrop">
-      <form class="modal-card account-modal-card" id="permissionForm">
-        <div class="section-head compact-head">
-          <div>
-            <p class="eyebrow">Permissions</p>
-            <h2>${escapeHtml(user.name)} 的权限</h2>
-          </div>
-          <button class="icon-button" id="closeAccountModal" type="button">×</button>
-        </div>
-        <div class="permission-summary">
-          <span>角色：${roleLabels[user.role] || user.role}</span>
-          <span>部门：${departmentName(user.departmentId)}</span>
-          <span>部门预设：${departmentPreset.extra.length} 项</span>
-          <span>最终权限：${finalCodes.length} 项</span>
-        </div>
-        <div class="permission-editor">
-          ${permissionOptions().map((permission) => `
-            <article>
-              <strong>${permission.name}</strong>
-              <span>${permission.group}</span>
-              <label><input type="checkbox" name="extra" value="${permission.code}" ${custom.extra.includes(permission.code) ? "checked" : ""} /> 额外允许</label>
-              <label><input type="checkbox" name="disabled" value="${permission.code}" ${custom.disabled.includes(permission.code) ? "checked" : ""} /> 禁用</label>
-            </article>
-          `).join("")}
-        </div>
-        <p class="message" id="accountModalMessage"></p>
-        <div class="modal-actions">
-          <button class="button secondary" id="cancelAccountModal" type="button">取消</button>
-          <button class="button" type="submit">保存权限</button>
-        </div>
-      </form>
-    </div>
-  `;
-}
-
 function renderDepartmentModal() {
   const editing = state.departmentEditingId ? state.departments.find((item) => item.id === state.departmentEditingId) : null;
+  const preset = parsePermissionObject(editing?.permissionPreset);
+  const grouped = groupPermissionOptions();
   return `
     <div class="modal-backdrop" id="accountModalBackdrop">
-      <section class="modal-card account-modal-card">
-        <div class="section-head compact-head">
+      <section class="modal-card department-modal-card">
+        <div class="section-head compact-head department-modal-head">
           <div>
             <p class="eyebrow">Departments</p>
             <h2>部门管理</h2>
           </div>
           <button class="icon-button" id="closeAccountModal" type="button">×</button>
         </div>
-        <form class="department-form" id="departmentForm">
-          <input type="hidden" name="id" value="${escapeAttr(editing?.id || "")}" />
-          <div class="form-grid two-cols">
-            <label><span>部门名称</span><input name="name" value="${escapeAttr(editing?.name || "")}" required /></label>
-            <label>
-              <span>默认角色</span>
-              <select name="defaultRole">
-                ${Object.entries(roleLabels).map(([role, label]) => `<option value="${role}" ${editing?.defaultRole === role ? "selected" : ""}>${label}</option>`).join("")}
-              </select>
-            </label>
-            <label class="wide-field"><span>部门说明</span><input name="description" value="${escapeAttr(editing?.description || "")}" /></label>
-            <label>
-              <span>状态</span>
-              <select name="disabled">
-                <option value="false" ${!editing?.disabledAt ? "selected" : ""}>启用</option>
-                <option value="true" ${editing?.disabledAt ? "selected" : ""}>禁用</option>
-              </select>
-            </label>
-          </div>
-          <div class="permission-editor compact-permissions">
-            ${permissionOptions().map((permission) => {
-              const preset = parsePermissionObject(editing?.permissionPreset);
-              return `
-                <article>
-                  <strong>${permission.name}</strong>
-                  <span>${permission.group}</span>
-                  <label><input type="checkbox" name="extra" value="${permission.code}" ${preset.extra.includes(permission.code) ? "checked" : ""} /> 预设允许</label>
-                  <label><input type="checkbox" name="disabled" value="${permission.code}" ${preset.disabled.includes(permission.code) ? "checked" : ""} /> 预设禁用</label>
+        <div class="department-modal-layout">
+          <form class="department-form" id="departmentForm">
+            <input type="hidden" name="id" value="${escapeAttr(editing?.id || "")}" />
+            <div class="form-grid department-form-grid">
+              <label><span>部门名称</span><input name="name" value="${escapeAttr(editing?.name || "")}" required /></label>
+              <label>
+                <span>默认角色</span>
+                <select name="defaultRole">
+                  ${Object.entries(roleLabels).map(([role, label]) => `<option value="${role}" ${editing?.defaultRole === role ? "selected" : ""}>${label}</option>`).join("")}
+                </select>
+              </label>
+              <label>
+                <span>状态</span>
+                <select name="disabled">
+                  <option value="false" ${!editing?.disabledAt ? "selected" : ""}>启用</option>
+                  <option value="true" ${editing?.disabledAt ? "selected" : ""}>禁用</option>
+                </select>
+              </label>
+              <label class="wide-field"><span>部门说明</span><input name="description" value="${escapeAttr(editing?.description || "")}" /></label>
+            </div>
+            <section class="department-permission-groups">
+              ${Object.entries(grouped).map(([group, permissions]) => `
+                <article class="permission-group-card">
+                  <div class="permission-group-title">
+                    <strong>${escapeHtml(group)}</strong>
+                    <span>${permissions.length}</span>
+                  </div>
+                  <div class="permission-group-list">
+                    ${permissions.map((permission) => `
+                      <div class="permission-row department-permission-row">
+                        <div>
+                          <strong>${permission.name}</strong>
+                          <span>${permission.code}</span>
+                        </div>
+                        <label class="permission-check allow"><input type="checkbox" name="extra" value="${permission.code}" ${preset.extra.includes(permission.code) ? "checked" : ""} />允许</label>
+                        <label class="permission-check deny"><input type="checkbox" name="disabled" value="${permission.code}" ${preset.disabled.includes(permission.code) ? "checked" : ""} />禁用</label>
+                      </div>
+                    `).join("")}
+                  </div>
                 </article>
-              `;
-            }).join("")}
-          </div>
-          <p class="message" id="departmentMessage"></p>
-          <div class="modal-actions">
-            ${editing ? '<button class="button secondary" id="newDepartmentButton" type="button">新建部门</button>' : ""}
-            <button class="button" type="submit">${editing ? "保存部门" : "新增部门"}</button>
-          </div>
-        </form>
-        <div class="department-preview">
-          ${state.departments.map((dept) => `
-            <article class="${dept.disabledAt ? "disabled" : ""}">
-              <strong>${escapeHtml(dept.name)}</strong>
-              <span>${escapeHtml(dept.description || "暂无说明")}</span>
-              <span>默认角色：${roleLabels[dept.defaultRole] || dept.defaultRole || "未设置"} · ${dept.disabledAt ? "禁用" : "启用"}</span>
-              <div class="account-actions">
-                <button type="button" data-department-action="edit" data-department-id="${dept.id}">编辑</button>
-                <button type="button" data-department-action="toggle" data-department-id="${dept.id}">${dept.disabledAt ? "启用" : "禁用"}</button>
-              </div>
-            </article>
-          `).join("")}
+              `).join("")}
+            </section>
+            <p class="message" id="departmentMessage"></p>
+            <div class="modal-actions">
+              ${editing ? '<button class="button secondary" id="newDepartmentButton" type="button">新建部门</button>' : ""}
+              <button class="button" type="submit">${editing ? "保存部门" : "新增部门"}</button>
+            </div>
+          </form>
+          <aside class="department-preview">
+            <div class="department-preview-title">
+              <strong>部门列表</strong>
+              <span>${state.departments.length}</span>
+            </div>
+            ${state.departments.map((dept) => `
+              <article class="${dept.disabledAt ? "disabled" : ""}">
+                <strong>${escapeHtml(dept.name)}</strong>
+                <span>${escapeHtml(dept.description || "暂无说明")}</span>
+                <span>默认角色：${roleLabels[dept.defaultRole] || dept.defaultRole || "未设置"} · ${dept.disabledAt ? "禁用" : "启用"}</span>
+                <div class="account-actions">
+                  <button type="button" data-department-action="edit" data-department-id="${dept.id}">编辑</button>
+                  <button type="button" data-department-action="toggle" data-department-id="${dept.id}">${dept.disabledAt ? "启用" : "禁用"}</button>
+                </div>
+              </article>
+            `).join("")}
+          </aside>
         </div>
       </section>
     </div>
@@ -306,10 +281,7 @@ function bindAccountModalEvents() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     await saveAccount(state.accountEditingUserId, {
-      customPermissions: JSON.stringify({
-        extra: form.getAll("extra"),
-        disabled: form.getAll("disabled"),
-      }),
+      customPermissions: JSON.stringify(normalizePermissionFormData(form)),
     });
   });
   bindPermissionConflictGuards(document.querySelector("#permissionForm"));
@@ -342,10 +314,7 @@ async function handleDepartmentSubmit(event) {
     description: form.get("description"),
     defaultRole: form.get("defaultRole"),
     disabled: form.get("disabled"),
-    permissionPreset: JSON.stringify({
-      extra: form.getAll("extra"),
-      disabled: form.getAll("disabled"),
-    }),
+    permissionPreset: JSON.stringify(normalizePermissionFormData(form)),
   };
   const message = document.querySelector("#departmentMessage");
   if (message) message.textContent = "";
@@ -438,13 +407,28 @@ function departmentOptions(selectedId) {
 function parsePermissionObject(value) {
   try {
     const parsed = typeof value === "string" ? JSON.parse(value || "{}") : value || {};
-    return {
-      extra: Array.isArray(parsed.extra) ? parsed.extra.map(String) : [],
-      disabled: Array.isArray(parsed.disabled) ? parsed.disabled.map(String) : [],
-    };
+    return normalizePermissionObject(parsed);
   } catch {
     return { extra: [], disabled: [] };
   }
+}
+
+function normalizePermissionFormData(form) {
+  return normalizePermissionObject({
+    extra: form.getAll("extra"),
+    disabled: form.getAll("disabled"),
+  });
+}
+
+function normalizePermissionObject(value) {
+  const extra = uniquePermissionCodes(value?.extra);
+  const disabled = uniquePermissionCodes(value?.disabled).filter((code) => !extra.includes(code));
+  return { extra, disabled };
+}
+
+function uniquePermissionCodes(values) {
+  const allowed = new Set(permissionOptions().map((item) => item.code));
+  return [...new Set((Array.isArray(values) ? values : []).map(String))].filter((code) => allowed.has(code));
 }
 
 function rolePermissionCodes(role) {
@@ -565,12 +549,6 @@ function renderPermissionModal(user) {
               </article>
             `).join("")}
           </section>
-          <aside class="permission-preview">
-            <strong>生效权限预览</strong>
-            <div class="permission-chip-list">
-              ${finalCodes.map((code) => `<span>${escapeHtml(code)}</span>`).join("") || "<span>暂无</span>"}
-            </div>
-          </aside>
         </div>
         <p class="message" id="accountModalMessage"></p>
         <div class="modal-actions">

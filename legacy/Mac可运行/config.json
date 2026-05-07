@@ -1,7 +1,0 @@
-{
-  "dataDir": "../data",
-  "uploadDir": "../data/uploads",
-  "archiveDir": "../data/archives",
-  "archiveNameRule": "任务归档-{date}-{time}",
-  "archiveTaskNameRule": "{title}-{wechat}_{orderNo}_{designer}"
-}

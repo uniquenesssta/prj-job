@@ -61,13 +61,16 @@ function bindPublicCommentEvents() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const message = document.querySelector("#publicCommentMessage");
-    const button = form.querySelector("button");
+    const button = form.querySelector('button[type="submit"]');
     const text = new FormData(form).get("text");
     message.textContent = "";
     button.disabled = true;
     try {
-      await api(`/api/tasks/${state.selectedTaskId}/comments`, { method: "POST", body: { text } });
+      const selectedTaskId = state.selectedTaskId;
+      await api(`/api/tasks/${selectedTaskId}/comments`, { method: "POST", body: { text } });
       await loadData();
+      state.selectedTaskId = selectedTaskId;
+      state.taskDetailModalOpen = true;
       render();
     } catch (error) {
       message.style.color = "#cf4d40";
