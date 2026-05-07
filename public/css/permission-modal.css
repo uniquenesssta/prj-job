@@ -1,0 +1,196 @@
+/* Permission modal only. Keep this isolated from task detail and department modals. */
+.permission-preview {
+  display: none !important;
+}
+
+.permission-modal-card {
+  width: min(1280px, calc(100vw - 16px)) !important;
+  height: min(980px, calc(100vh - 16px)) !important;
+  max-height: calc(100vh - 16px) !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto auto !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.permission-modal-head {
+  min-height: 64px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 14px 18px !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.permission-modal-layout {
+  min-height: 0 !important;
+  height: 100% !important;
+  display: grid !important;
+  grid-template-columns: 240px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  margin: 0 !important;
+  padding: 16px !important;
+  overflow: hidden !important;
+}
+
+.permission-profile {
+  width: auto !important;
+  min-width: 0 !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+}
+
+.permission-profile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.permission-groups {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain !important;
+  display: block !important;
+  padding-right: 8px !important;
+}
+
+.permission-group-card {
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 0 12px !important;
+}
+
+.permission-group-title {
+  height: auto !important;
+  min-height: 46px !important;
+  padding: 10px 12px !important;
+}
+
+.permission-group-list {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.permission-row {
+  min-width: 0 !important;
+  min-height: 68px !important;
+  height: auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1fr) 96px 96px !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 12px !important;
+  overflow: visible !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.permission-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.permission-row > div {
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.permission-row strong {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 20px !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.permission-row span {
+  display: block !important;
+  margin-top: 2px !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  color: var(--muted) !important;
+}
+
+.permission-check {
+  width: 96px !important;
+  min-width: 96px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+}
+
+.permission-check input,
+.permission-editor input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-height: 16px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex: 0 0 16px !important;
+}
+
+.permission-modal-card > .message {
+  margin: 0 !important;
+  padding: 0 18px 8px !important;
+}
+
+.permission-modal-card > .modal-actions {
+  margin: 0 !important;
+  position: static !important;
+  min-height: 62px !important;
+  padding: 12px 18px 16px !important;
+  border-top: 1px solid var(--line) !important;
+  background: #fff !important;
+  z-index: 2 !important;
+}
+
+@media (max-width: 900px) {
+  .permission-modal-card {
+    width: min(760px, calc(100vw - 16px)) !important;
+    height: calc(100vh - 16px) !important;
+  }
+
+  .permission-modal-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .permission-profile {
+    width: 100% !important;
+    max-height: 180px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .permission-modal-card {
+    width: calc(100vw - 12px) !important;
+    height: calc(100vh - 12px) !important;
+  }
+
+  .permission-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .permission-check {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
