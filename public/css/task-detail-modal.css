@@ -1,0 +1,42 @@
+/* Task detail modal only. Keep this isolated from account permission styles. */
+.task-detail-modal-card {
+  width: min(1560px, calc(100vw - 48px)) !important;
+  height: min(980px, calc(100vh - 32px)) !important;
+  max-height: calc(100vh - 32px) !important;
+  overflow-y: auto !important;
+  padding: 16px !important;
+}
+
+.task-detail-modal-card .detail-layout {
+  grid-template-columns: minmax(640px, 1.12fr) minmax(470px, 0.88fr) !important;
+  gap: 16px !important;
+}
+
+.task-detail-modal-card .detail-layout.solo-detail {
+  grid-template-columns: 1fr !important;
+}
+
+.task-detail-modal-card .comments {
+  height: min(520px, calc(100vh - 390px)) !important;
+}
+
+.task-detail-modal-card .detail-card {
+  padding: 18px !important;
+}
+
+@media (max-width: 1100px) {
+  .task-detail-modal-card .detail-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .task-detail-modal-card .comments {
+    height: 420px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .task-detail-modal-card {
+    width: calc(100vw - 16px) !important;
+    height: calc(100vh - 16px) !important;
+  }
+}
