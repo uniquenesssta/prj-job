@@ -48,6 +48,27 @@ function renderPublicComment(comment) {
   `;
 }
 
+function taskUiContext() {
+  return {
+    selectedTaskId: state.selectedTaskId,
+    taskDetailModalOpen: state.taskDetailModalOpen,
+    adminView: state.adminView,
+    overviewExpandedPanel: state.overviewExpandedPanel,
+    selectedDesignerId: state.selectedDesignerId,
+    selectedServiceId: state.selectedServiceId,
+    overviewTaskFilter: state.overviewTaskFilter,
+    overviewSearch: state.overviewSearch,
+    peerViewModal: state.peerViewModal,
+    peerViewSelectedId: state.peerViewSelectedId,
+    peerViewSearch: state.peerViewSearch,
+    peerViewStatus: state.peerViewStatus,
+  };
+}
+
+function restoreTaskUiContext(context) {
+  Object.assign(state, context);
+}
+
 function bindPublicCommentEvents() {
   const form = document.querySelector("#publicCommentForm");
   if (!form) return;
@@ -61,13 +82,15 @@ function bindPublicCommentEvents() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const message = document.querySelector("#publicCommentMessage");
-    const button = form.querySelector("button");
+    const button = form.querySelector('button[type="submit"]');
     const text = new FormData(form).get("text");
+    const context = taskUiContext();
     message.textContent = "";
     button.disabled = true;
     try {
       await api(`/api/tasks/${state.selectedTaskId}/comments`, { method: "POST", body: { text } });
       await loadData();
+      restoreTaskUiContext(context);
       render();
     } catch (error) {
       message.style.color = "#cf4d40";
