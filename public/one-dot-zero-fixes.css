@@ -1,4 +1,6 @@
 /* 1.0 release UI fixes: permission/department modal layout and checkbox sizing */
+
+/* Keep checkbox controls compact and predictable in modal lists */
 input[type="checkbox"] {
   width: 16px;
   height: 16px;
@@ -13,21 +15,19 @@ input[type="checkbox"] {
   display: none !important;
 }
 
-.permission-profile-grid article:last-child:nth-child(4) {
-  display: none !important;
-}
-
+/* Permission modal: adaptive two-column desktop layout + inner scrolling list */
 .permission-modal-card {
-  width: min(1080px, calc(100vw - 48px));
-  max-height: min(820px, calc(100vh - 48px));
+  width: min(1180px, calc(100vw - 32px));
+  height: min(900px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
   display: grid;
-  grid-template-rows: 60px minmax(0, 1fr) 64px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   padding: 0;
 }
 
 .permission-modal-head {
-  min-height: 60px;
+  min-height: 62px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -37,75 +37,98 @@ input[type="checkbox"] {
 }
 
 .permission-modal-layout {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) !important;
-  gap: 14px;
   min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(190px, 22vw, 240px) minmax(0, 1fr) !important;
+  gap: 16px;
   padding: 14px;
   overflow: hidden;
 }
 
 .permission-profile {
-  width: 220px;
+  width: auto;
+  min-width: 0;
   max-height: 100%;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .permission-profile-grid {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .permission-groups {
+  min-width: 0;
   min-height: 0;
-  max-height: calc(min(820px, calc(100vh - 48px)) - 152px);
+  max-height: none;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
+  align-content: start;
   gap: 10px;
-  padding-right: 6px;
+  padding-right: 8px;
+}
+
+.permission-group-card {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .permission-group-title {
-  height: 42px;
+  height: auto;
   min-height: 42px;
-  padding: 0 12px;
+  padding: 9px 12px;
+}
+
+.permission-group-list {
+  display: grid;
 }
 
 .permission-row {
-  min-height: 46px;
-  height: 46px;
+  min-width: 0;
+  min-height: 48px;
+  height: auto;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 76px 76px;
+  grid-template-columns: minmax(180px, 1fr) minmax(76px, 92px) minmax(76px, 92px);
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: 8px 12px;
+}
+
+.permission-row > div {
+  min-width: 0;
 }
 
 .permission-row strong {
-  font-size: 13px;
+  display: block;
+  font-size: 14px;
   line-height: 18px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .permission-row span {
-  font-size: 11px;
-  line-height: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--muted);
 }
 
 .permission-check {
-  width: 76px;
-  height: 30px;
-  min-height: 30px;
+  width: auto;
+  min-width: 76px;
+  height: 32px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  padding: 0 8px;
   font-size: 12px;
-  border-radius: 999px;
+  border-radius: 8px;
 }
 
 .permission-check input,
@@ -119,23 +142,40 @@ input[type="checkbox"] {
   flex: 0 0 16px;
 }
 
+.permission-modal-card > .message {
+  margin: 0;
+  padding: 0 18px 8px;
+}
+
+.permission-modal-card > .modal-actions {
+  position: sticky;
+  bottom: 0;
+  min-height: 58px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 2;
+}
+
+/* Department modal: keep permission choices usable and scrollable */
 .account-modal-card:has(#departmentForm),
 .department-modal-card {
-  width: min(720px, calc(100vw - 32px));
-  max-height: min(860px, calc(100vh - 32px));
+  width: min(980px, calc(100vw - 32px));
+  max-height: min(900px, calc(100vh - 32px));
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(160px, auto);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .account-modal-card:has(#departmentForm) .department-form,
 .department-modal-card .department-form {
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .department-form .form-grid.two-cols {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -151,17 +191,17 @@ input[type="checkbox"] {
 
 .compact-permissions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 8px;
-  max-height: 288px;
+  max-height: min(420px, 44vh);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 6px;
   margin-top: 12px;
 }
 
 .compact-permissions article {
-  min-height: 92px;
-  max-height: 104px;
+  min-height: 96px;
   padding: 10px;
   border-radius: 8px;
   display: grid;
@@ -172,18 +212,14 @@ input[type="checkbox"] {
 .compact-permissions article strong {
   font-size: 13px;
   line-height: 18px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .compact-permissions article > span {
   font-size: 11px;
   line-height: 14px;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .compact-permissions label {
@@ -196,7 +232,7 @@ input[type="checkbox"] {
 }
 
 .department-preview {
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
 }
 
@@ -207,25 +243,36 @@ input[type="checkbox"] {
 }
 
 @media (max-width: 900px) {
+  .permission-modal-card {
+    width: min(760px, calc(100vw - 24px));
+  }
+
   .permission-modal-layout {
     grid-template-columns: 1fr !important;
   }
 
   .permission-profile {
     width: 100%;
-  }
-
-  .compact-permissions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 180px;
   }
 }
 
 @media (max-width: 640px) {
-  .compact-permissions {
-    grid-template-columns: 1fr;
+  .permission-modal-card {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
   }
 
   .permission-row {
-    grid-template-columns: 1fr 70px 70px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .permission-check {
+    width: 100%;
+  }
+
+  .compact-permissions {
+    grid-template-columns: 1fr;
   }
 }
