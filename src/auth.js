@@ -10,7 +10,7 @@ const {
   verifyPassword,
   writeDb,
 } = require("./storage");
-const { canManageUsers } = require("./permissions");
+const { canManageUsers, hasAnyPermission, hasPermission } = require("./permissions");
 const { insertOperationLog } = require("./repositories/system-repo");
 
 const sessions = new Map();
@@ -102,12 +102,15 @@ function handleUsers(req, res) {
   const user = requireUser(req, res);
   if (!user) return;
   const allUsers = readDb().users;
-  const visibleUsers =
-    user.role === "owner"
-      ? allUsers.filter((item) => !item.deletedAt)
-      : user.role === "service"
-        ? allUsers.filter((item) => !item.deletedAt && (item.role === "designer" || item.id === user.id))
-        : allUsers.filter((item) => !item.deletedAt && item.id === user.id);
+  const canViewAllUsers = hasAnyPermission(user, ["users.manage", "tasks.read_all"]);
+  const visibleUsers = allUsers.filter((item) => {
+    if (item.deletedAt) return false;
+    if (canViewAllUsers || item.id === user.id) return true;
+    if (item.role === "designer" && hasPermission(user, "views.other_designers")) return true;
+    if (item.role === "service" && hasPermission(user, "views.other_services")) return true;
+    if (user.role === "service" && item.role === "designer") return true;
+    return false;
+  });
   const users = visibleUsers.map(publicUser);
   sendJson(res, 200, { users });
 }

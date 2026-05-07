@@ -22,7 +22,6 @@ function showApp() {
   appView.hidden = false;
   document.querySelector("#currentUser").textContent = `${state.user.name} · ${roleLabels[state.user.role]}`;
   resetAdminTabs();
-  adminTabs.hidden = state.user.role !== "owner";
   render();
 }
 
@@ -36,12 +35,22 @@ function ensureMaintenanceTab() {
 }
 
 function resetAdminTabs() {
-  if (state.user.role !== "owner") return;
+  if (state.user.role !== "owner") {
+    const buttons = [
+      '<button class="active" type="button" data-workspace-home="1">工作台</button>',
+      userHasPermission("views.other_designers") ? '<button type="button" data-peer-view="designers">其他设计师</button>' : "",
+      userHasPermission("views.other_services") ? '<button type="button" data-peer-view="services">其他客服</button>' : "",
+    ].filter(Boolean);
+    adminTabs.innerHTML = buttons.join("");
+    adminTabs.hidden = buttons.length <= 1;
+    return;
+  }
   adminTabs.innerHTML = `
     <button class="${state.adminView === "overview" ? "active" : ""}" type="button" data-admin-view="overview">总览</button>
     <button class="${state.adminView === "archived" ? "active" : ""}" type="button" data-admin-view="archived">归档</button>
     <button class="${["maintenance", "account"].includes(state.adminView) ? "active" : ""}" type="button" data-admin-view="maintenance">维护</button>
   `;
+  adminTabs.hidden = false;
 }
 
 boot();

@@ -31,6 +31,23 @@ function bindStaticEvents() {
   });
 
   adminTabs.addEventListener("click", async (event) => {
+    const peerButton = event.target.closest("button[data-peer-view]");
+    if (peerButton) {
+      state.peerViewModal = peerButton.dataset.peerView;
+      state.peerViewSelectedId = "";
+      state.peerViewSearch = "";
+      state.peerViewStatus = "all";
+      adminTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === peerButton));
+      render();
+      return;
+    }
+    const homeButton = event.target.closest("button[data-workspace-home]");
+    if (homeButton) {
+      state.peerViewModal = "";
+      adminTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === homeButton));
+      render();
+      return;
+    }
     const button = event.target.closest("button[data-admin-view]");
     if (!button) return;
     state.adminView = button.dataset.adminView;
@@ -95,6 +112,16 @@ function bindTaskPageEvents() {
 }
 
 function bindDetailEvents() {
+  document.querySelector("#closeTaskDetailModal")?.addEventListener("click", () => {
+    state.taskDetailModalOpen = false;
+    render();
+  });
+  document.querySelector("#taskDetailBackdrop")?.addEventListener("click", (event) => {
+    if (event.target.id !== "taskDetailBackdrop") return;
+    state.taskDetailModalOpen = false;
+    render();
+  });
+
   document.querySelectorAll("[data-delete-file-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       await deleteFile(button.dataset.deleteFileId);

@@ -2,12 +2,17 @@ function filteredTasks(view) {
   return state.tasks.filter((task) => {
     const archivedOk = view === "archived" ? Boolean(task.archivedAt) : !task.archivedAt;
     const designerViewOk = view !== "designer" || (state.designerView === "private" ? task.visibility === "private" : task.visibility !== "private");
+    const workspaceScopeOk = userHasPermission("tasks.read_all")
+      || view === "archived"
+      || (view === "designer" && (task.assigneeId === state.user.id || (task.visibility === "private" && task.creatorId === state.user.id)))
+      || (view === "service" && task.creatorId === state.user.id)
+      || !["designer", "service"].includes(view);
     const statusOk = state.status === "all" || task.status === state.status;
-    const assigneeOk = state.assignee === "all" || task.assigneeId === state.assignee || view !== "designer" || state.user.role !== "owner";
+    const assigneeOk = state.assignee === "all" || task.assigneeId === state.assignee || view !== "designer" || !userHasPermission("tasks.read_all");
     const text = `${task.title} ${task.description} ${task.remark || ""} ${task.assigneeName} ${task.creatorName} ${task.wechat} ${task.orderNo} ${task.taobaoId} ${task.taskType || ""} ${task.sizeSpec || ""} ${task.deliverFormat || ""} ${task.customerRequirement || ""}`.toLowerCase();
     const searchOk = !state.search || text.includes(state.search);
     const quickOk = matchesQuickFilter(task);
-    return archivedOk && designerViewOk && statusOk && assigneeOk && searchOk && quickOk;
+    return archivedOk && designerViewOk && workspaceScopeOk && statusOk && assigneeOk && searchOk && quickOk;
   });
 }
 
@@ -40,9 +45,25 @@ function taskMessageCount(task) {
 }
 
 function canEditBrief(task) {
-  return state.user.role === "owner"
-    || (state.user.role === "service" && task.creatorId === state.user.id)
-    || (state.user.role === "designer" && task.visibility === "private" && task.creatorId === state.user.id);
+  if (task.visibility === "private" && task.creatorId === state.user.id && task.assigneeId === state.user.id) return true;
+  return userHasPermission("tasks.edit_brief")
+    && (userHasPermission("tasks.read_all") || task.creatorId === state.user.id);
+}
+
+function canOperateTask(task) {
+  return userHasPermission("tasks.read_all") || task.creatorId === state.user.id || task.assigneeId === state.user.id;
+}
+
+function canUpdateTaskStatus(task) {
+  return userHasPermission("tasks.update_status") && canOperateTask(task);
+}
+
+function userHasPermission(code) {
+  return Array.isArray(state.user?.effectivePermissions) && state.user.effectivePermissions.includes(code);
+}
+
+function userHasAnyPermission(codes) {
+  return (codes || []).some((code) => userHasPermission(code));
 }
 
 function latestComment(task) {

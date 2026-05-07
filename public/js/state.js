@@ -33,6 +33,10 @@ const state = {
   maintenanceSummary: null,
   maintenanceLogs: [],
   maintenanceKeyword: "",
+  peerViewModal: "",
+  peerViewSelectedId: "",
+  peerViewSearch: "",
+  peerViewStatus: "all",
 };
 
 const statusLabels = {

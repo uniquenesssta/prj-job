@@ -103,7 +103,7 @@ function renderTaskCard(task) {
 }
 
 function renderTaskCardActions(task) {
-  if (state.user.role !== "owner" || task.archivedAt) return "";
+  if (!userHasPermission("tasks.delete") || task.archivedAt) return "";
   return `
     <div class="task-card-actions">
       <button class="button danger compact-button" type="button" data-delete-task-id="${task.id}">删除</button>

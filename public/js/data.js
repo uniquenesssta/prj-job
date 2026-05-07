@@ -1,5 +1,5 @@
 async function loadData() {
-  const taskUrl = state.user?.role === "owner" && state.adminView === "archived" ? "/api/tasks?archived=1" : "/api/tasks";
+  const taskUrl = userHasPermission("archives.manage") && state.adminView === "archived" ? "/api/tasks?archived=1" : "/api/tasks";
   const [usersData, tasksData, departmentsData] = await Promise.all([api("/api/users"), api(taskUrl), api("/api/departments")]);
   state.users = usersData.users;
   state.tasks = tasksData.tasks;

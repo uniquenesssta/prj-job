@@ -8,6 +8,8 @@ const fileUsageLabels = {
 };
 
 function renderUploadForm() {
+  const task = state.tasks.find((item) => item.id === state.selectedTaskId);
+  if (!task || !userHasPermission("files.upload") || !canOperateTask(task)) return "";
   const defaultUsage = state.user.role === "service" ? "material" : state.user.role === "designer" ? "draft" : "other";
   return `
     <section class="detail-card">
@@ -33,6 +35,7 @@ function renderUploadForm() {
 
 function renderFiles(task) {
   if (!task.attachments.length) return '<section class="detail-card file-list"><h2>文件</h2><div class="empty">还没有上传文件</div></section>';
+  const canDownload = userHasPermission("files.download") && canOperateTask(task);
   const fileItem = (file) => `
     <article class="file-item">
       <div>
@@ -75,7 +78,7 @@ function groupFilesByUsage(files) {
 }
 
 function canDeleteFile(file) {
-  return state.user.role === "owner" || file.uploadedBy === state.user.id;
+  return userHasPermission("files.delete_any") || (userHasPermission("files.delete_own") && file.uploadedBy === state.user.id);
 }
 
 function renderFiles(task) {
@@ -87,7 +90,7 @@ function renderFiles(task) {
         <span>${fileUsageLabels[file.usage || "other"] || "其他"} · ${formatSize(file.size)} · ${escapeHtml(file.uploadedByName)}（${roleLabels[file.uploadedByRole] || "成员"}） · ${formatDateTime(file.uploadedAt)}</span>
       </div>
       <div class="file-actions">
-        <a href="/api/files/${file.id}">下载</a>
+        ${canDownload ? `<a href="/api/files/${file.id}">下载</a>` : ""}
         ${canDeleteFile(file) ? `<button class="button danger compact-button" type="button" data-delete-file-id="${file.id}">删除</button>` : ""}
       </div>
     </article>

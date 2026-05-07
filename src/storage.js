@@ -17,6 +17,7 @@ const { listComments, replaceComments } = require("./repositories/comments-repo"
 const { insertFiles, listFiles } = require("./repositories/files-repo");
 const { insertTasks, listTasks } = require("./repositories/tasks-repo");
 const { defaultDepartmentId, insertUsers, listUsers } = require("./repositories/users-repo");
+const { resolveUserPermissionCodes } = require("./permissions");
 
 function ensureStorage() {
   const db = ensureDatabase();
@@ -242,6 +243,7 @@ function publicUser(user) {
     role: user.role,
     departmentId: user.departmentId || defaultDepartmentId(user.role),
     customPermissions: user.customPermissions || "{}",
+    effectivePermissions: resolveUserPermissionCodes(user),
     disabledAt: user.disabledAt || "",
     deletedAt: user.deletedAt || "",
   };

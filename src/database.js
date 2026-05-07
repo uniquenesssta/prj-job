@@ -483,7 +483,7 @@ function seedReferenceData(db) {
 function seedReferenceDataV2(db) {
   const now = new Date().toISOString();
   const departments = [
-    ["dept_admin", "管理部", "系统管理、账号、归档和维护", "owner", ["users.manage", "departments.manage", "permissions.manage", "archives.manage", "system.maintain", "operation_logs.view", "operation_logs.export"]],
+    ["dept_admin", "管理部", "系统管理、账号、归档和维护", "owner", ["users.manage", "departments.manage", "permissions.manage", "archives.manage", "system.maintain", "operation_logs.view", "operation_logs.export", "views.other_designers", "views.other_services"]],
     ["dept_service", "客服部", "客户需求录入和沟通跟进", "service", ["tasks.create_public", "tasks.edit_brief", "files.upload", "comments.write"]],
     ["dept_design", "设计部", "设计执行、交付和个人任务", "designer", ["tasks.create_private", "tasks.update_status", "files.upload", "notes.write"]],
   ];
@@ -524,6 +524,8 @@ function seedReferenceDataV2(db) {
     ["perm_system_maintain", "system.maintain", "系统维护", "维护"],
     ["perm_operation_logs_view", "operation_logs.view", "查看操作记录", "操作记录"],
     ["perm_operation_logs_export", "operation_logs.export", "导出操作记录", "操作记录"],
+    ["perm_views_other_designers", "views.other_designers", "查看其他设计师", "视图权限"],
+    ["perm_views_other_services", "views.other_services", "查看其他客服", "视图权限"],
   ];
   const insertPermission = db.prepare(`
     INSERT OR IGNORE INTO permissions (id, code, name, groupName)

@@ -17,6 +17,9 @@ const {
   canEditTaskBrief,
   canRestoreTask,
   canUpdateTaskStatus,
+  canViewOtherDesigners,
+  canViewOtherServices,
+  hasPermission,
 } = require("./permissions");
 const { insertOperationLog, markArchiveRecordRestored } = require("./repositories/system-repo");
 
@@ -25,10 +28,28 @@ function handleGetTasks(req, res) {
   if (!user) return;
   const db = readDb();
   const comments = readComments();
-  const includeArchived = user.role === "owner" && new URL(req.url, `http://${req.headers.host}`).searchParams.get("archived") === "1";
+  const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
+  const includeArchived = hasPermission(user, "archives.manage") && params.get("archived") === "1";
+  const designerId = params.get("designerId") || "";
+  const serviceId = params.get("serviceId") || "";
+  const scope = params.get("scope") || "";
+
+  if ((scope === "other-designers" || designerId) && !canViewOtherDesigners(user) && !hasPermission(user, "tasks.read_all")) {
+    sendError(res, 403, "当前账号不能查看其他设计师");
+    return;
+  }
+  if ((scope === "other-services" || serviceId) && !canViewOtherServices(user) && !hasPermission(user, "tasks.read_all")) {
+    sendError(res, 403, "当前账号不能查看其他客服");
+    return;
+  }
+
   const tasks = db.tasks
     .filter((task) => canAccessTask(user, task))
     .filter((task) => !task.deletedAt)
+    .filter((task) => !designerId || task.assigneeId === designerId)
+    .filter((task) => !serviceId || task.creatorId === serviceId)
+    .filter((task) => (scope !== "other-designers" || (task.assigneeId && task.visibility !== "private")))
+    .filter((task) => (scope !== "other-services" || (task.creatorId && task.visibility !== "private")))
     .filter((task) => {
       if (!task.archivedAt) return true;
       return includeArchived;
@@ -144,7 +165,13 @@ async function handleUpdateTask(req, res, taskId) {
   if (body.deliverFormat !== undefined) task.deliverFormat = String(body.deliverFormat).trim();
   if (body.customerRequirement !== undefined) task.customerRequirement = String(body.customerRequirement).trim();
   if (body.remark !== undefined) task.remark = String(body.remark).trim();
-  if (body.assigneeId !== undefined && db.users.some((item) => item.id === body.assigneeId && item.role === "designer")) task.assigneeId = body.assigneeId;
+  if (body.assigneeId !== undefined && db.users.some((item) => item.id === body.assigneeId && item.role === "designer")) {
+    if (task.visibility === "private" && !hasPermission(user, "tasks.read_all") && body.assigneeId !== user.id) {
+      sendError(res, 403, "个人任务不能改派给其他设计师");
+      return;
+    }
+    task.assigneeId = body.assigneeId;
+  }
   if (body.dueDate !== undefined) task.dueDate = String(body.dueDate).trim();
   if (["low", "normal", "high", "urgent"].includes(body.priority)) task.priority = body.priority;
   if (["todo", "doing", "review", "done", "blocked"].includes(body.status)) {

@@ -125,7 +125,7 @@ function renderAccountModal() {
   `;
 }
 
-function renderPermissionModal(user) {
+function renderPermissionModalLegacy(user) {
   if (!user) return "";
   const custom = parsePermissionObject(user.customPermissions);
   const department = departmentById(user.departmentId);
@@ -312,12 +312,25 @@ function bindAccountModalEvents() {
       }),
     });
   });
+  bindPermissionConflictGuards(document.querySelector("#permissionForm"));
+  bindPermissionConflictGuards(document.querySelector("#departmentForm"));
   document.querySelector("#departmentForm")?.addEventListener("submit", handleDepartmentSubmit);
   document.querySelector("#newDepartmentButton")?.addEventListener("click", () => {
     state.departmentEditingId = "";
     render();
   });
   document.querySelector(".department-preview")?.addEventListener("click", handleDepartmentListClick);
+}
+
+function bindPermissionConflictGuards(root) {
+  if (!root) return;
+  root.addEventListener("change", (event) => {
+    const input = event.target.closest('input[type="checkbox"][name="extra"], input[type="checkbox"][name="disabled"]');
+    if (!input || !input.checked) return;
+    const otherName = input.name === "extra" ? "disabled" : "extra";
+    const other = root.querySelector(`input[type="checkbox"][name="${otherName}"][value="${CSS.escape(input.value)}"]`);
+    if (other) other.checked = false;
+  });
 }
 
 async function handleDepartmentSubmit(event) {
@@ -473,6 +486,8 @@ function permissionOptions() {
     { code: "system.maintain", name: "系统维护", group: "维护" },
     { code: "operation_logs.view", name: "查看操作记录", group: "操作记录" },
     { code: "operation_logs.export", name: "导出操作记录", group: "操作记录" },
+    { code: "views.other_designers", name: "查看其他设计师", group: "视图权限" },
+    { code: "views.other_services", name: "查看其他客服", group: "视图权限" },
   ];
 }
 

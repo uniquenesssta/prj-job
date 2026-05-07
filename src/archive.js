@@ -5,7 +5,7 @@ const { sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { enrichTask, publicUser, readComments, readDb, writeDb, writeJsonFile } = require("./storage");
 const { requireUser } = require("./auth");
-const { canArchiveTask } = require("./permissions");
+const { canArchiveTask, hasPermission } = require("./permissions");
 const { insertArchiveRecord, insertOperationLog } = require("./repositories/system-repo");
 const {
   formatArchiveStamp,
@@ -29,7 +29,7 @@ function handleArchiveDoneTasks(req, res) {
   if (!user) return;
   const db = readDb();
   const tasks = db.tasks.filter((task) => canArchiveTask(user, task));
-  if (user.role !== "owner") {
+  if (!hasPermission(user, "archives.manage")) {
     sendError(res, 403, "只有管理员可以归档");
     return;
   }
@@ -55,7 +55,7 @@ function handleArchiveOneTask(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
-  if (user.role !== "owner") {
+  if (!hasPermission(user, "archives.manage")) {
     sendError(res, 403, "只有管理员可以归档任务");
     return;
   }
