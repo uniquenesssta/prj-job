@@ -78,6 +78,11 @@ function bindStaticEvents() {
 function bindTaskPageEvents() {
   document.querySelector("#refreshTasks")?.addEventListener("click", reloadTasks);
   document.querySelector("#taskList")?.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest("button[data-delete-task-id]");
+    if (deleteButton) {
+      await deleteTask(deleteButton.dataset.deleteTaskId);
+      return;
+    }
     const button = event.target.closest("button[data-task-id]");
     if (!button) return;
     state.selectedTaskId = button.dataset.taskId;
@@ -90,6 +95,12 @@ function bindTaskPageEvents() {
 }
 
 function bindDetailEvents() {
+  document.querySelectorAll("[data-delete-file-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await deleteFile(button.dataset.deleteFileId);
+    });
+  });
+
   document.querySelector("#archiveTaskButton")?.addEventListener("click", async () => {
     await api(`/api/tasks/${state.selectedTaskId}/archive`, { method: "POST" });
     state.selectedTaskId = null;
@@ -102,6 +113,10 @@ function bindDetailEvents() {
     state.selectedTaskId = null;
     await loadData();
     render();
+  });
+
+  document.querySelector("#deleteTaskButton")?.addEventListener("click", async () => {
+    await deleteTask(state.selectedTaskId);
   });
 
   document.querySelector("#toggleBriefEdit")?.addEventListener("click", () => {
@@ -143,6 +158,27 @@ function bindDetailEvents() {
 
 async function updateTask(body) {
   await api(`/api/tasks/${state.selectedTaskId}`, { method: "PATCH", body });
+  await loadData();
+  render();
+}
+
+async function deleteTask(taskId) {
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task) return;
+  if (!confirm(`确认删除任务「${task.title}」？删除后默认不在任务池显示。`)) return;
+  await api(`/api/tasks/${taskId}`, { method: "DELETE" });
+  if (state.selectedTaskId === taskId) state.selectedTaskId = null;
+  state.taskDetailModalOpen = false;
+  await loadData();
+  render();
+}
+
+async function deleteFile(fileId) {
+  const task = state.tasks.find((item) => item.id === state.selectedTaskId);
+  const file = task?.attachments?.find((item) => item.id === fileId);
+  if (!file) return;
+  if (!confirm(`确认删除文件「${file.originalName}」？`)) return;
+  await api(`/api/files/${fileId}`, { method: "DELETE" });
   await loadData();
   render();
 }

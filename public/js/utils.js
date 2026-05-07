@@ -107,3 +107,73 @@ function escapeHtml(value) {
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll("\n", " ");
 }
+
+function resetOverviewPanelContext() {
+  state.selectedDesignerId = "";
+  state.selectedServiceId = "";
+  state.overviewTaskFilter = "all";
+  state.overviewSearch = "";
+}
+
+function toggleExclusivePanel(stateKey, panel, options = {}) {
+  const nextPanel = state[stateKey] === panel ? "" : panel;
+  state[stateKey] = nextPanel;
+  if (typeof options.afterToggle === "function") options.afterToggle(nextPanel);
+  return nextPanel;
+}
+
+function openExclusivePanel(stateKey, panel, options = {}) {
+  state[stateKey] = panel;
+  if (typeof options.afterOpen === "function") options.afterOpen(panel);
+  return panel;
+}
+
+function toggleScopedExclusivePanel(config) {
+  const {
+    stateKey,
+    panel,
+    scopeKey,
+    scopeValue,
+    afterToggle,
+  } = config;
+  const isSameEntry = state[stateKey] === panel && state[scopeKey] === scopeValue;
+  state[stateKey] = isSameEntry ? "" : panel;
+  state[scopeKey] = isSameEntry ? "" : scopeValue;
+  if (typeof afterToggle === "function") afterToggle(state[stateKey], state[scopeKey]);
+  return state[stateKey];
+}
+
+function toggleOverviewPanel(panel) {
+  return toggleExclusivePanel("overviewExpandedPanel", panel, {
+    afterToggle: resetOverviewPanelContext,
+  });
+}
+
+function openOverviewPanel(panel) {
+  return openExclusivePanel("overviewExpandedPanel", panel);
+}
+
+function toggleOverviewDesignerPanel(designerId) {
+  const nextPanel = toggleScopedExclusivePanel({
+    stateKey: "overviewExpandedPanel",
+    panel: "designerTasks",
+    scopeKey: "selectedDesignerId",
+    scopeValue: designerId,
+  });
+  state.overviewTaskFilter = "all";
+  state.overviewSearch = "";
+  return nextPanel;
+}
+
+function toggleOverviewServicePanel(serviceId) {
+  const nextPanel = toggleScopedExclusivePanel({
+    stateKey: "overviewExpandedPanel",
+    panel: "serviceTasks",
+    scopeKey: "selectedServiceId",
+    scopeValue: serviceId,
+  });
+  state.selectedDesignerId = "";
+  state.overviewTaskFilter = "all";
+  state.overviewSearch = "";
+  return nextPanel;
+}

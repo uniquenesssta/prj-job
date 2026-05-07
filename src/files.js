@@ -5,7 +5,7 @@ const { readBody, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { createId, enrichTask, readDb, writeDb } = require("./storage");
 const { requireUser } = require("./auth");
-const { canDownloadTaskFile, canUploadToTask } = require("./permissions");
+const { canDeleteUploadedFile, canDownloadTaskFile, canUploadToTask } = require("./permissions");
 const { enqueueUpload } = require("./upload-queue");
 const { insertOperationLog } = require("./repositories/system-repo");
 
@@ -174,6 +174,42 @@ function handleInlineFile(req, res, fileId) {
   return streamFile(req, res, fileId, "inline");
 }
 
+function handleDeleteFile(req, res, fileId) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const db = readDb();
+  const fileIndex = db.files.findIndex((item) => item.id === fileId);
+  const file = db.files[fileIndex];
+  if (!file) {
+    sendError(res, 404, "文件不存在");
+    return;
+  }
+  const task = db.tasks.find((item) => item.id === file.taskId);
+  if (!task || !canDownloadTaskFile(user, task, file) || !canDeleteUploadedFile(user, file)) {
+    sendError(res, 403, "无权删除该文件");
+    return;
+  }
+  const filePath = storedFilePath(file);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  db.files.splice(fileIndex, 1);
+  db.tasks.forEach((item) => {
+    item.attachments = (item.attachments || []).filter((attachmentId) => attachmentId !== file.id);
+    if (item.id === task.id) item.updatedAt = new Date().toISOString();
+  });
+  writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "file.delete",
+    targetType: "file",
+    targetId: file.id,
+    detail: JSON.stringify({ taskId: task.id, originalName: file.originalName }),
+    createdAt: new Date().toISOString(),
+  });
+  broadcast("files-changed", { taskId: task.id, fileId: file.id });
+  sendJson(res, 200, { ok: true });
+}
+
 function streamFile(req, res, fileId, dispositionType) {
   const user = requireUser(req, res);
   if (!user) return;
@@ -218,6 +254,7 @@ function uniquePath(filePath) {
 module.exports = {
   formatArchiveStamp,
   formatDate,
+  handleDeleteFile,
   handleDownload,
   handleInlineFile,
   handleUpload,

@@ -51,6 +51,11 @@ function canDownloadTaskFile(user, task, file) {
   return Boolean(file && task && file.taskId === task.id && canAccessTask(user, task));
 }
 
+function canDeleteUploadedFile(user, file) {
+  if (!user || !file) return false;
+  return isOwner(user) || file.uploadedBy === user.id;
+}
+
 function canCommentTask(user, task) {
   return canAccessTask(user, task) && task.visibility !== "private";
 }
@@ -89,12 +94,26 @@ function canRestoreTask(user, task) {
   return isOwner(user) && Boolean(task);
 }
 
+function canDeleteTask(user, task) {
+  return isOwner(user) && Boolean(task) && !task.deletedAt;
+}
+
+function canRunMaintenance(user) {
+  return isOwner(user);
+}
+
+function canViewOperationLogs(user) {
+  return isOwner(user);
+}
+
 module.exports = {
   canAccessTask,
   canArchiveTask,
   canCommentTask,
   canCreatePersonalTask,
   canCreatePublicTask,
+  canDeleteTask,
+  canDeleteUploadedFile,
   canDownloadTaskFile,
   canEditTaskBrief,
   canManageDepartments,
@@ -102,7 +121,9 @@ module.exports = {
   canManageUsers,
   canReadPersonalNote,
   canRestoreTask,
+  canRunMaintenance,
   canUpdateTaskStatus,
+  canViewOperationLogs,
   canUploadToTask,
   canWritePersonalNote,
   canWritePersonalRemark,

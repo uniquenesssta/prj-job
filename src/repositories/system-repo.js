@@ -115,6 +115,24 @@ function insertLogArchiveRecord(record, db = getOperationDatabase()) {
   );
 }
 
+function listOperationLogs(filters = {}, db = getOperationDatabase()) {
+  const rows = db.prepare("SELECT * FROM operation_logs ORDER BY createdAt DESC, rowid DESC LIMIT 500").all();
+  return rows.filter((row) => {
+    const text = `${row.userName} ${row.action} ${row.targetType} ${row.targetId} ${row.detail}`.toLowerCase();
+    const keywordOk = !filters.keyword || text.includes(String(filters.keyword).toLowerCase());
+    const actionOk = !filters.action || row.action === filters.action;
+    return keywordOk && actionOk;
+  });
+}
+
+function listMaintenanceRecords(db = getOperationDatabase()) {
+  return db.prepare("SELECT * FROM maintenance_records ORDER BY createdAt DESC, rowid DESC LIMIT 100").all();
+}
+
+function listLogArchiveRecords(db = getOperationDatabase()) {
+  return db.prepare("SELECT * FROM log_archive_records ORDER BY archiveDate DESC, rowid DESC LIMIT 100").all();
+}
+
 function normalizeOperationLog(entry) {
   return {
     id: entry.id || createDatabaseId("op"),
@@ -133,7 +151,10 @@ module.exports = {
   insertLogArchiveRecord,
   insertMaintenanceRecord,
   insertOperationLog,
+  listLogArchiveRecords,
   listDepartments,
+  listMaintenanceRecords,
+  listOperationLogs,
   listPermissions,
   listRolePermissions,
   listTaskFieldDefinitions,

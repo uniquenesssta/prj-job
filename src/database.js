@@ -25,6 +25,7 @@ function ensureDatabase() {
   migrateUserOrganizationFields(db);
   migrateDepartmentFields(db);
   migrateTaskDesignFields(db);
+  migrateTaskDeletionFields(db);
   migrateFileUsageField(db);
   migratePersonalNotesSchema(db);
   seedReferenceDataV2(db);
@@ -121,7 +122,9 @@ function createSchema(db) {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
       archivedAt TEXT NOT NULL DEFAULT '',
-      archiveZipPath TEXT NOT NULL DEFAULT ''
+      archiveZipPath TEXT NOT NULL DEFAULT '',
+      deletedAt TEXT NOT NULL DEFAULT '',
+      deletedBy TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS task_statuses (
@@ -264,6 +267,12 @@ function migrateTaskDesignFields(db) {
   });
 }
 
+function migrateTaskDeletionFields(db) {
+  const columns = db.prepare("PRAGMA table_info(tasks)").all().map((column) => column.name);
+  if (!columns.includes("deletedAt")) db.exec("ALTER TABLE tasks ADD COLUMN deletedAt TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("deletedBy")) db.exec("ALTER TABLE tasks ADD COLUMN deletedBy TEXT NOT NULL DEFAULT ''");
+}
+
 function migratePersonalNotesSchema(db) {
   const columns = db.prepare("PRAGMA table_info(personal_notes)").all().map((column) => column.name);
   const indexes = db.prepare("PRAGMA index_list(personal_notes)").all();
@@ -307,6 +316,7 @@ function createIndexes(db) {
     CREATE INDEX IF NOT EXISTS idx_tasks_creator ON tasks(creatorId);
     CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(dueDate);
     CREATE INDEX IF NOT EXISTS idx_tasks_visibility ON tasks(visibility);
+    CREATE INDEX IF NOT EXISTS idx_tasks_deleted ON tasks(deletedAt);
     CREATE INDEX IF NOT EXISTS idx_files_task ON files(taskId);
     CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(taskId);
     CREATE INDEX IF NOT EXISTS idx_personal_notes_task_user ON personal_notes(taskId, userId);

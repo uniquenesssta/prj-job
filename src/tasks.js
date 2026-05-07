@@ -13,6 +13,7 @@ const {
   canAccessTask,
   canCreatePersonalTask,
   canCreatePublicTask,
+  canDeleteTask,
   canEditTaskBrief,
   canRestoreTask,
   canUpdateTaskStatus,
@@ -27,6 +28,7 @@ function handleGetTasks(req, res) {
   const includeArchived = user.role === "owner" && new URL(req.url, `http://${req.headers.host}`).searchParams.get("archived") === "1";
   const tasks = db.tasks
     .filter((task) => canAccessTask(user, task))
+    .filter((task) => !task.deletedAt)
     .filter((task) => {
       if (!task.archivedAt) return true;
       return includeArchived;
@@ -77,6 +79,8 @@ async function handleCreateTask(req, res) {
     createdAt: now,
     updatedAt: now,
     attachments: [],
+    deletedAt: "",
+    deletedBy: "",
   };
   db.tasks.push(task);
   writeDb(db);
@@ -98,7 +102,7 @@ async function handleUpdateTask(req, res, taskId) {
   if (!user) return;
   const body = await readJson(req);
   const db = readDb();
-  const task = db.tasks.find((item) => item.id === taskId);
+  const task = db.tasks.find((item) => item.id === taskId && !item.deletedAt);
   if (!task) {
     sendError(res, 404, "任务不存在");
     return;
@@ -162,6 +166,37 @@ async function handleUpdateTask(req, res, taskId) {
   sendJson(res, 200, { task: enrichTask(db, task) });
 }
 
+async function handleDeleteTask(req, res, taskId) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const db = readDb();
+  const task = db.tasks.find((item) => item.id === taskId && !item.deletedAt);
+  if (!task) {
+    sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (!canDeleteTask(user, task)) {
+    sendError(res, 403, "只有管理员可以删除任务");
+    return;
+  }
+  const now = new Date().toISOString();
+  task.deletedAt = now;
+  task.deletedBy = user.id;
+  task.updatedAt = now;
+  writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "task.delete",
+    targetType: "task",
+    targetId: task.id,
+    detail: JSON.stringify({ title: task.title, status: task.status, assigneeId: task.assigneeId }),
+    createdAt: now,
+  });
+  broadcast("tasks-changed", { taskId: task.id });
+  sendJson(res, 200, { ok: true });
+}
+
 async function handleRestoreTask(req, res, taskId) {
   const user = requireUser(req, res);
   if (!user) return;
@@ -206,6 +241,7 @@ function progressForStatus(status) {
 
 module.exports = {
   handleCreateTask,
+  handleDeleteTask,
   handleGetTasks,
   handleRestoreTask,
   handleUpdateTask,

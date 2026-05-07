@@ -29,9 +29,11 @@ function renderOverviewPage() {
       ${renderRiskList("今日截止", dashboard.todayTasks, "warning")}
       ${renderRiskList("待审核", dashboard.reviewTasks, "review")}
     </aside>
+    ${renderTaskDetailModal()}
   `;
   bindOverviewEvents();
   if (state.overviewExpandedPanel === "service") bindOverviewTaskForm();
+  if (state.taskDetailModalOpen) bindDetailEvents();
 }
 
 function renderOverviewEntry(panel, title, count, hint) {
@@ -84,7 +86,7 @@ function renderOverviewDesignerPanel(dashboard) {
           <h2>设计师视图</h2>
         </div>
       </div>
-      <div class="overview-grid">
+      <div class="overview-grid load-grid">
         ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无设计师账号</div>'}
       </div>
     </section>
@@ -100,7 +102,7 @@ function renderOverviewTeamLoadPanel(dashboard) {
           <h2>团队负载详情</h2>
         </div>
       </div>
-      <div class="overview-grid">
+      <div class="overview-grid load-grid">
         ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无负载数据</div>'}
       </div>
       <div class="overview-list">
@@ -223,24 +225,46 @@ function buildDashboard(tasks) {
 function renderDesignerLoadCard(row) {
   const total = row.allTasks.length;
   const percent = total ? Math.round((row.done / total) * 100) : 0;
+  const tone = row.overdue ? "danger" : row.urgent ? "warning" : "";
+  const selected = state.overviewExpandedPanel === "designerTasks" && state.selectedDesignerId === row.user.id ? "selected" : "";
   return `
-    <button class="load-card ${row.overdue ? "danger" : row.urgent ? "warning" : ""}" type="button" data-designer-id="${row.user.id}">
+    <button class="load-card ${tone} ${selected}" type="button" data-designer-id="${row.user.id}">
       <div class="load-head">
         <div>
           <strong>${escapeHtml(row.user.name)}</strong>
           <span>${escapeHtml(row.user.username)}</span>
         </div>
-        <b>${row.active}</b>
+        <span class="load-total">
+          <b>${row.active}</b>
+          <small>进行压力</small>
+        </span>
       </div>
-      <div class="load-stats">
-        <span>公共 ${row.assigned.length}</span>
-        <span>个人 ${row.privateTasks.length}</span>
-        <span>加急 ${row.urgent}</span>
-        <span>超时 ${row.overdue}</span>
-        <span>待审 ${row.review}</span>
-      </div>
+      ${renderLoadNumberGrid(row)}
       <div class="progress-line" style="--progress:${percent}%"><span></span></div>
     </button>
+  `;
+}
+
+function renderLoadNumberGrid(row) {
+  const items = [
+    ["公共", row.assigned.length, "load-public"],
+    ["个人", row.privateTasks.length, "load-private"],
+    ["加急", row.urgent, "load-urgent"],
+    ["超时", row.overdue, "load-overdue"],
+    ["待审", row.review, "load-review"],
+    ["进行", row.doing, "load-doing"],
+    ["完成", row.done, "load-done"],
+    ["待办", row.todo, "load-todo"],
+  ];
+  return `
+    <div class="load-number-grid">
+      ${items.map(([label, value, className]) => `
+        <span class="load-number ${className}">
+          <b>${value}</b>
+          <small>${label}</small>
+        </span>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -282,44 +306,36 @@ function renderRiskTask(task) {
 function bindOverviewEvents() {
   workspace.querySelectorAll("[data-overview-panel]").forEach((button) => {
     button.addEventListener("click", () => {
-      const panel = button.dataset.overviewPanel;
-      state.overviewExpandedPanel = state.overviewExpandedPanel === panel ? "" : panel;
-      state.selectedDesignerId = "";
-      state.overviewTaskFilter = "all";
-      state.overviewSearch = "";
+      toggleOverviewPanel(button.dataset.overviewPanel);
       render();
     });
   });
   workspace.querySelectorAll("[data-designer-id]").forEach((button) => {
     button.addEventListener("click", () => {
-      const designerId = button.dataset.designerId;
-      if (state.overviewExpandedPanel === "designerTasks" && state.selectedDesignerId === designerId) {
-        state.overviewExpandedPanel = "";
-        state.selectedDesignerId = "";
-      } else {
-        state.overviewExpandedPanel = "designerTasks";
-        state.selectedDesignerId = designerId;
-      }
-      state.overviewTaskFilter = "all";
-      state.overviewSearch = "";
+      toggleOverviewDesignerPanel(button.dataset.designerId);
       render();
     });
   });
   workspace.querySelectorAll("[data-overview-task]").forEach((button) => {
     button.addEventListener("click", async () => {
-      state.overviewExpandedPanel = "globalTasks";
+      openOverviewPanel("globalTasks");
       state.selectedTaskId = button.dataset.overviewTask;
+      state.taskDetailModalOpen = true;
       await loadPersonalNotes(state.selectedTaskId);
       render();
     });
   });
   workspace.querySelector("#taskList")?.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest("button[data-delete-task-id]");
+    if (deleteButton) {
+      await deleteTask(deleteButton.dataset.deleteTaskId);
+      return;
+    }
     const button = event.target.closest("button[data-task-id]");
     if (!button) return;
     state.selectedTaskId = button.dataset.taskId;
+    state.taskDetailModalOpen = true;
     await loadPersonalNotes(state.selectedTaskId);
-    state.adminView = "designer";
-    adminTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item.dataset.adminView === "designer"));
     render();
   });
   workspace.querySelectorAll("[data-overview-filter]").forEach((button) => {
@@ -328,12 +344,240 @@ function bindOverviewEvents() {
       render();
     });
   });
+  workspace.querySelector("#closeTaskDetailModal")?.addEventListener("click", closeTaskDetailModal);
+  workspace.querySelector("#taskDetailBackdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "taskDetailBackdrop") closeTaskDetailModal();
+  });
   workspace.querySelector("#overviewSearchInput")?.addEventListener("input", (event) => {
     state.overviewSearch = event.currentTarget.value.trim().toLowerCase();
     render();
   });
 }
 
+function closeTaskDetailModal() {
+  state.taskDetailModalOpen = false;
+  state.selectedTaskId = null;
+  state.pendingRemarkImages = [];
+  render();
+}
+
 function bindOverviewTaskForm() {
   bindTaskForm();
+}
+
+function renderOverviewPage() {
+  const tasks = state.tasks.filter((task) => !task.archivedAt);
+  const dashboard = buildDashboard(tasks);
+  workspace.className = "workspace overview overview-workspace";
+  workspace.innerHTML = `
+    <section class="panel overview-main">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Overview</p>
+          <h2>管理总览</h2>
+        </div>
+      </div>
+      <div class="overview-entry-grid compact-overview-entry-grid">
+        ${renderOverviewEntry("teamLoad", "团队负载", dashboard.designerRows.length + dashboard.serviceRows.length, "设计师压力与客服接单情况")}
+        ${renderOverviewEntry("globalTasks", "全局任务池", tasks.length, "筛选全部公共和个人任务")}
+      </div>
+      ${renderOverviewExpandedPanel(dashboard, tasks)}
+    </section>
+    <aside class="panel overview-side">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Risk</p>
+          <h2>需要关注</h2>
+        </div>
+      </div>
+      ${renderRiskList("已超时", dashboard.overdueTasks, "danger")}
+      ${renderRiskList("今日截止", dashboard.todayTasks, "warning")}
+      ${renderRiskList("待审核", dashboard.reviewTasks, "review")}
+    </aside>
+    ${renderTaskDetailModal()}
+  `;
+  bindOverviewEvents();
+  if (state.taskDetailModalOpen) bindDetailEvents();
+}
+
+function renderOverviewExpandedPanel(dashboard, tasks) {
+  switch (state.overviewExpandedPanel) {
+    case "globalTasks":
+      return renderOverviewGlobalTasksPanel(tasks);
+    case "teamLoad":
+      return renderOverviewTeamLoadPanel(dashboard);
+    case "designerTasks":
+      return renderOverviewDesignerTasksPanel(tasks);
+    default:
+      return '<div class="overview-empty-hint">选择上方模块，在当前页展开处理。</div>';
+  }
+}
+
+function renderOverviewTeamLoadPanel(dashboard) {
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Team Load</p>
+          <h2>团队负载详情</h2>
+        </div>
+      </div>
+      <section class="load-section">
+        <div class="load-section-head">
+          <strong>设计师执行负载</strong>
+          <span>${dashboard.designerRows.length}</span>
+        </div>
+        <div class="overview-grid load-grid">
+          ${dashboard.designerRows.map(renderDesignerLoadCard).join("") || '<div class="empty small-empty">暂无设计师负载数据</div>'}
+        </div>
+      </section>
+      <section class="load-section">
+        <div class="load-section-head">
+          <strong>客服接单负载</strong>
+          <span>${dashboard.serviceRows.length}</span>
+        </div>
+        <div class="overview-grid service-load-grid">
+          ${dashboard.serviceRows.map(renderServiceLoadCard).join("") || '<div class="empty small-empty">暂无客服账号</div>'}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderServiceLoadCard(row) {
+  const tone = row.overdue ? "danger" : row.urgent ? "warning" : "";
+  return `
+    <article class="load-card service-load-card ${tone}">
+      <div class="load-head">
+        <div>
+          <strong>${escapeHtml(row.user.name)}</strong>
+          <span>${escapeHtml(row.user.username)}</span>
+        </div>
+        <span class="load-total">
+          <b>${row.created.length}</b>
+          <small>接单数量</small>
+        </span>
+      </div>
+      <div class="load-number-grid service-load-numbers">
+        <span class="load-number load-public"><b>${row.created.length}</b><small>接单</small></span>
+        <span class="load-number load-doing"><b>${row.active}</b><small>进行中</small></span>
+        <span class="load-number load-overdue"><b>${row.overdue}</b><small>超时</small></span>
+        <span class="load-number load-urgent"><b>${row.urgent}</b><small>加急</small></span>
+      </div>
+    </article>
+  `;
+}
+
+function renderServiceLoadCard(row) {
+  const tone = row.overdue ? "danger" : row.urgent ? "warning" : "";
+  const selected = state.overviewExpandedPanel === "serviceTasks" && state.selectedServiceId === row.user.id ? "selected" : "";
+  return `
+    <button class="load-card service-load-card ${tone} ${selected}" type="button" data-service-id="${row.user.id}">
+      <div class="load-head">
+        <div>
+          <strong>${escapeHtml(row.user.name)}</strong>
+          <span>${escapeHtml(row.user.username)}</span>
+        </div>
+        <span class="load-total">
+          <b>${row.created.length}</b>
+          <small>接单数量</small>
+        </span>
+      </div>
+      <div class="load-number-grid service-load-numbers">
+        <span class="load-number load-public"><b>${row.created.length}</b><small>接单</small></span>
+        <span class="load-number load-doing"><b>${row.active}</b><small>进行中</small></span>
+        <span class="load-number load-overdue"><b>${row.overdue}</b><small>超时</small></span>
+        <span class="load-number load-urgent"><b>${row.urgent}</b><small>加急</small></span>
+      </div>
+    </button>
+  `;
+}
+
+function renderOverviewExpandedPanel(dashboard, tasks) {
+  switch (state.overviewExpandedPanel) {
+    case "globalTasks":
+      return renderOverviewGlobalTasksPanel(tasks);
+    case "teamLoad":
+      return renderOverviewTeamLoadPanel(dashboard);
+    case "designerTasks":
+      return renderOverviewDesignerTasksPanel(tasks);
+    case "serviceTasks":
+      return renderOverviewServiceTasksPanel(tasks);
+    default:
+      return '<div class="overview-empty-hint">选择上方模块，在当前页展开处理。</div>';
+  }
+}
+
+function renderOverviewServiceTasksPanel(tasks) {
+  const service = state.users.find((user) => user.id === state.selectedServiceId);
+  const filtered = filterOverviewTasks(tasks.filter((task) => task.creatorId === state.selectedServiceId && task.visibility !== "private"));
+  return `
+    <section class="overview-expanded">
+      <div class="section-head compact-head">
+        <div>
+          <p class="eyebrow">Service Tasks</p>
+          <h2>${service ? escapeHtml(service.name) : "客服"} 发布的任务</h2>
+        </div>
+      </div>
+      ${renderOverviewTaskFilters()}
+      ${renderTaskList(filtered)}
+    </section>
+  `;
+}
+
+function bindOverviewEvents() {
+  workspace.querySelectorAll("[data-overview-panel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleOverviewPanel(button.dataset.overviewPanel);
+      render();
+    });
+  });
+  workspace.querySelectorAll("[data-designer-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleOverviewDesignerPanel(button.dataset.designerId);
+      render();
+    });
+  });
+  workspace.querySelectorAll("[data-service-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleOverviewServicePanel(button.dataset.serviceId);
+      render();
+    });
+  });
+  workspace.querySelectorAll("[data-overview-task]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      openOverviewPanel("globalTasks");
+      state.selectedTaskId = button.dataset.overviewTask;
+      state.taskDetailModalOpen = true;
+      await loadPersonalNotes(state.selectedTaskId);
+      render();
+    });
+  });
+  workspace.querySelector("#taskList")?.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest("button[data-delete-task-id]");
+    if (deleteButton) {
+      await deleteTask(deleteButton.dataset.deleteTaskId);
+      return;
+    }
+    const button = event.target.closest("button[data-task-id]");
+    if (!button) return;
+    state.selectedTaskId = button.dataset.taskId;
+    state.taskDetailModalOpen = true;
+    await loadPersonalNotes(state.selectedTaskId);
+    render();
+  });
+  workspace.querySelectorAll("[data-overview-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.overviewTaskFilter = button.dataset.overviewFilter;
+      render();
+    });
+  });
+  workspace.querySelector("#closeTaskDetailModal")?.addEventListener("click", closeTaskDetailModal);
+  workspace.querySelector("#taskDetailBackdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "taskDetailBackdrop") closeTaskDetailModal();
+  });
+  workspace.querySelector("#overviewSearchInput")?.addEventListener("input", (event) => {
+    state.overviewSearch = event.currentTarget.value.trim().toLowerCase();
+    render();
+  });
 }

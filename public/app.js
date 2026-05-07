@@ -21,8 +21,27 @@ function showApp() {
   loginView.hidden = true;
   appView.hidden = false;
   document.querySelector("#currentUser").textContent = `${state.user.name} · ${roleLabels[state.user.role]}`;
+  resetAdminTabs();
   adminTabs.hidden = state.user.role !== "owner";
   render();
+}
+
+function ensureMaintenanceTab() {
+  if (document.querySelector('[data-admin-view="maintenance"]')) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.adminView = "maintenance";
+  button.textContent = "维护";
+  adminTabs.appendChild(button);
+}
+
+function resetAdminTabs() {
+  if (state.user.role !== "owner") return;
+  adminTabs.innerHTML = `
+    <button class="${state.adminView === "overview" ? "active" : ""}" type="button" data-admin-view="overview">总览</button>
+    <button class="${state.adminView === "archived" ? "active" : ""}" type="button" data-admin-view="archived">归档</button>
+    <button class="${["maintenance", "account"].includes(state.adminView) ? "active" : ""}" type="button" data-admin-view="maintenance">维护</button>
+  `;
 }
 
 boot();

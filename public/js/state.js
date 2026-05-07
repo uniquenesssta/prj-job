@@ -14,6 +14,7 @@ const state = {
   events: null,
   briefEditOpen: false,
   personalTaskModalOpen: false,
+  taskDetailModalOpen: false,
   personalNotesByTask: {},
   pendingRemarkImages: [],
   remarkImageViewer: null,
@@ -26,8 +27,12 @@ const state = {
   accountStatusFilter: "all",
   overviewExpandedPanel: "",
   selectedDesignerId: "",
+  selectedServiceId: "",
   overviewTaskFilter: "all",
   overviewSearch: "",
+  maintenanceSummary: null,
+  maintenanceLogs: [],
+  maintenanceKeyword: "",
 };
 
 const statusLabels = {

@@ -1,8 +1,11 @@
 const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 const {
   LEGACY_COMMENT_FILE,
   LEGACY_DB_FILE,
+  REMARK_IMAGE_DIR,
+  UPLOAD_DIR,
 } = require("./config");
 const {
   clearCoreData,
@@ -254,7 +257,7 @@ function enrichTask(db, task, comments = readComments()) {
     attachments: task.attachments
       .map((fileId) => {
         const file = db.files.find((item) => item.id === fileId);
-        if (!file) return null;
+        if (!file || !fs.existsSync(storedFilePath(file))) return null;
         const uploader = db.users.find((user) => user.id === file.uploadedBy);
         return {
           ...file,
@@ -284,6 +287,11 @@ function enrichTask(db, task, comments = readComments()) {
       };
     }),
   };
+}
+
+function storedFilePath(file) {
+  const baseDir = file.storageArea === "remarkImage" ? REMARK_IMAGE_DIR : UPLOAD_DIR;
+  return path.join(baseDir, file.relativePath || file.storedName);
 }
 
 function writeJsonFile(filePath, data) {

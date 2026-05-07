@@ -15,6 +15,8 @@ const LEGACY_DB_FILE = path.join(DATA_DIR, "db.json");
 const LEGACY_COMMENT_FILE = path.join(DATA_DIR, "comments.json");
 const ARCHIVE_DIR = resolvePath(CONFIG.archiveDir, path.join("data", "archives"));
 const OPERATION_LOG_DIR = resolvePath(CONFIG.operationLogDir, path.join("data", "operation-logs"));
+const OPERATION_LOG_ARCHIVE_HOUR = Number.isInteger(Number(CONFIG.operationLogArchiveHour)) ? Number(CONFIG.operationLogArchiveHour) : 0;
+const OPERATION_LOG_ARCHIVE_MINUTE = Number.isInteger(Number(CONFIG.operationLogArchiveMinute)) ? Number(CONFIG.operationLogArchiveMinute) : 0;
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_FILE)) return {};
@@ -40,6 +42,8 @@ module.exports = {
   LEGACY_COMMENT_FILE,
   LEGACY_DB_FILE,
   OPERATION_DB_FILE,
+  OPERATION_LOG_ARCHIVE_HOUR,
+  OPERATION_LOG_ARCHIVE_MINUTE,
   OPERATION_LOG_DIR,
   PORT,
   PUBLIC_DIR,

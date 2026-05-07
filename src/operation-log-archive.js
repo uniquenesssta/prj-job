@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { OPERATION_LOG_DIR } = require("./config");
+const { OPERATION_LOG_ARCHIVE_HOUR, OPERATION_LOG_ARCHIVE_MINUTE, OPERATION_LOG_DIR } = require("./config");
 const { getOperationDatabase } = require("./database");
 const { insertLogArchiveRecord, insertMaintenanceRecord } = require("./repositories/system-repo");
 
@@ -63,7 +63,8 @@ function formatMaintenanceLine(row) {
 
 function millisecondsUntilNextMidnight(now = new Date()) {
   const next = new Date(now);
-  next.setHours(24, 0, 0, 0);
+  next.setHours(OPERATION_LOG_ARCHIVE_HOUR, OPERATION_LOG_ARCHIVE_MINUTE, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
   return Math.max(1000, next.getTime() - now.getTime());
 }
 

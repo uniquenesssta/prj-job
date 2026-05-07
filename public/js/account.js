@@ -498,3 +498,79 @@ function bindArchiveButton() {
     }
   });
 }
+
+function renderPermissionModal(user) {
+  if (!user) return "";
+  const custom = parsePermissionObject(user.customPermissions);
+  const department = departmentById(user.departmentId);
+  const departmentPreset = parsePermissionObject(department?.permissionPreset);
+  const finalCodes = resolvePermissionPreview(user, department);
+  const grouped = groupPermissionOptions();
+  return `
+    <div class="modal-backdrop" id="accountModalBackdrop">
+      <form class="modal-card permission-modal-card" id="permissionForm">
+        <div class="permission-modal-head">
+          <div>
+            <p class="eyebrow">Permissions</p>
+            <h2>${escapeHtml(user.name)} 的权限</h2>
+          </div>
+          <button class="icon-button" id="closeAccountModal" type="button">×</button>
+        </div>
+        <div class="permission-modal-layout">
+          <aside class="permission-profile">
+            <strong>${escapeHtml(user.name)}</strong>
+            <span>${escapeHtml(user.username)}</span>
+            <div class="permission-profile-grid">
+              <article><small>角色</small><b>${roleLabels[user.role] || user.role}</b></article>
+              <article><small>部门</small><b>${departmentName(user.departmentId)}</b></article>
+              <article><small>部门预设</small><b>${departmentPreset.extra.length}</b></article>
+              <article><small>最终权限</small><b>${finalCodes.length}</b></article>
+            </div>
+            <p>权限 = 角色基础权限 + 部门预设 + 个人额外允许 - 个人禁用。</p>
+          </aside>
+          <section class="permission-groups">
+            ${Object.entries(grouped).map(([group, permissions]) => `
+              <article class="permission-group-card">
+                <div class="permission-group-title">
+                  <strong>${escapeHtml(group)}</strong>
+                  <span>${permissions.length}</span>
+                </div>
+                <div class="permission-group-list">
+                  ${permissions.map((permission) => `
+                    <div class="permission-row">
+                      <div>
+                        <strong>${permission.name}</strong>
+                        <span>${permission.code}</span>
+                      </div>
+                      <label class="permission-check allow"><input type="checkbox" name="extra" value="${permission.code}" ${custom.extra.includes(permission.code) ? "checked" : ""} />允许</label>
+                      <label class="permission-check deny"><input type="checkbox" name="disabled" value="${permission.code}" ${custom.disabled.includes(permission.code) ? "checked" : ""} />禁用</label>
+                    </div>
+                  `).join("")}
+                </div>
+              </article>
+            `).join("")}
+          </section>
+          <aside class="permission-preview">
+            <strong>生效权限预览</strong>
+            <div class="permission-chip-list">
+              ${finalCodes.map((code) => `<span>${escapeHtml(code)}</span>`).join("") || "<span>暂无</span>"}
+            </div>
+          </aside>
+        </div>
+        <p class="message" id="accountModalMessage"></p>
+        <div class="modal-actions">
+          <button class="button secondary" id="cancelAccountModal" type="button">取消</button>
+          <button class="button" type="submit">保存权限</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function groupPermissionOptions() {
+  return permissionOptions().reduce((groups, permission) => {
+    if (!groups[permission.group]) groups[permission.group] = [];
+    groups[permission.group].push(permission);
+    return groups;
+  }, {});
+}

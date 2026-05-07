@@ -8,4 +8,5 @@ function render() {
   if (view === "designer") renderDesignerPage();
   if (view === "service") renderServicePage();
   if (view === "archived") renderArchivedPage();
+  if (view === "maintenance") renderMaintenancePage();
 }

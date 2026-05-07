@@ -6,6 +6,7 @@ function renderHeader(view) {
     account: "账号管理",
     archived: "归档项目",
   };
+  titleMap.maintenance = "系统维护";
   const subtitleMap = {
     overview: "查看全局负载、超时任务、加急任务和团队当前工作量。",
     designer: "优先级、截止时间、备注和附件集中在一张清爽任务池里。",
@@ -13,13 +14,14 @@ function renderHeader(view) {
     account: "新增管理员、客服或设计师账号，并查看当前团队。",
     archived: "已归档项目默认对客服和设计师隐藏，管理员可在这里查看并恢复显示。",
   };
+  subtitleMap.maintenance = "检查文件、数据库、维护记录和操作日志。";
   document.querySelector("#roleEyebrow").textContent = state.user.role === "owner" ? "Admin Console" : roleLabels[state.user.role];
   document.querySelector("#pageTitle").textContent = titleMap[view];
   document.querySelector("#pageSubtitle").textContent = subtitleMap[view];
 }
 
 function renderToolbar(view) {
-  const taskView = !["account", "overview"].includes(view);
+  const taskView = !["account", "overview", "maintenance"].includes(view);
   viewTabs.hidden = !taskView;
   assigneeFilterWrap.hidden = view !== "designer" || state.user.role !== "owner";
   quickFilters.hidden = !taskView;
@@ -54,6 +56,13 @@ function renderMetrics(view) {
           ["进行中", tasks.filter((task) => task.status === "doing").length],
           ["已超时", tasks.filter(isOverdue).length],
           ["加急", tasks.filter((task) => task.priority === "urgent" && task.status !== "done").length],
+        ]
+      : view === "maintenance"
+      ? [
+          ["维护入口", 1],
+          ["操作记录", state.maintenanceLogs?.length || 0],
+          ["维护记录", state.maintenanceSummary?.recentMaintenance?.length || 0],
+          ["日志归档", state.maintenanceSummary?.logArchives?.length || 0],
         ]
       : view === "account"
       ? [

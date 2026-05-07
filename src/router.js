@@ -13,12 +13,21 @@ const {
 const { handleCreateComment, handleGetComments } = require("./comments");
 const { handleCreateDepartment, handleGetDepartments, handleUpdateDepartment } = require("./departments");
 const { handleEvents } = require("./events");
-const { handleDownload, handleInlineFile, handleUpload } = require("./files");
+const { handleDeleteFile, handleDownload, handleInlineFile, handleUpload } = require("./files");
+const {
+  handleArchiveOperationLogs,
+  handleCleanMissingFiles,
+  handleMaintenanceSummary,
+  handleOperationLogs,
+  handleScanMissingFiles,
+  handleScanOrphanFiles,
+} = require("./maintenance");
 const { handleGetPersonalNote, handlePutPersonalNote } = require("./notes");
 const { handleCreateRemark } = require("./remarks");
 const { serveStatic } = require("./static");
 const {
   handleCreateTask,
+  handleDeleteTask,
   handleGetTasks,
   handleRestoreTask,
   handleUpdateTask,
@@ -45,6 +54,12 @@ function route(req, res) {
       if (req.method === "PATCH" && departmentUpdate) return handleUpdateDepartment(req, res, departmentUpdate[1]);
       const userUpdate = pathname.match(/^\/api\/users\/([^/]+)$/);
       if (req.method === "PATCH" && userUpdate) return handleUpdateUser(req, res, userUpdate[1]);
+      if (req.method === "GET" && pathname === "/api/maintenance/summary") return handleMaintenanceSummary(req, res);
+      if (req.method === "POST" && pathname === "/api/maintenance/scan-missing-files") return handleScanMissingFiles(req, res);
+      if (req.method === "POST" && pathname === "/api/maintenance/clean-missing-files") return handleCleanMissingFiles(req, res);
+      if (req.method === "POST" && pathname === "/api/maintenance/scan-orphan-files") return handleScanOrphanFiles(req, res);
+      if (req.method === "POST" && pathname === "/api/maintenance/archive-operation-logs") return handleArchiveOperationLogs(req, res);
+      if (req.method === "GET" && pathname === "/api/operation-logs") return handleOperationLogs(req, res);
       if (req.method === "POST" && pathname === "/api/archive") return handleArchiveDoneTasks(req, res);
       if (req.method === "GET" && pathname === "/api/tasks") return handleGetTasks(req, res);
       if (req.method === "POST" && pathname === "/api/tasks") return handleCreateTask(req, res);
@@ -54,6 +69,7 @@ function route(req, res) {
       if (req.method === "POST" && taskRestore) return handleRestoreTask(req, res, taskRestore[1]);
       const taskUpdate = pathname.match(/^\/api\/tasks\/([^/]+)$/);
       if (req.method === "PATCH" && taskUpdate) return handleUpdateTask(req, res, taskUpdate[1]);
+      if (req.method === "DELETE" && taskUpdate) return handleDeleteTask(req, res, taskUpdate[1]);
       const upload = pathname.match(/^\/api\/tasks\/([^/]+)\/upload$/);
       if (req.method === "POST" && upload) return handleUpload(req, res, upload[1]);
       const remark = pathname.match(/^\/api\/tasks\/([^/]+)\/remarks$/);
@@ -68,6 +84,7 @@ function route(req, res) {
       if (req.method === "GET" && inlineFile) return handleInlineFile(req, res, inlineFile[1]);
       const download = pathname.match(/^\/api\/files\/([^/]+)$/);
       if (req.method === "GET" && download) return handleDownload(req, res, download[1]);
+      if (req.method === "DELETE" && download) return handleDeleteFile(req, res, download[1]);
       if (req.method === "GET") return serveStatic(req, res, pathname);
       sendError(res, 405, "不支持的请求");
     })

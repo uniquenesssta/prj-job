@@ -85,6 +85,7 @@ function renderTaskCard(task) {
         <span>${task.dueDate || "未设截止"}</span>
       </button>
       ${renderTaskSignals(task)}
+      ${renderTaskCardActions(task)}
       <div class="task-meta">
         <span>设计师：${escapeHtml(task.assigneeName)}</span>
         <span>${task.visibility === "private" ? "个人任务" : `客服：${escapeHtml(task.creatorName)}`}</span>
@@ -98,6 +99,15 @@ function renderTaskCard(task) {
       </div>
       ${preview ? `<div class="task-comment"><span>${preview.label}</span><p>${escapeHtml(preview.text)}</p></div>` : ""}
     </article>
+  `;
+}
+
+function renderTaskCardActions(task) {
+  if (state.user.role !== "owner" || task.archivedAt) return "";
+  return `
+    <div class="task-card-actions">
+      <button class="button danger compact-button" type="button" data-delete-task-id="${task.id}">删除</button>
+    </div>
   `;
 }
 

@@ -34,8 +34,24 @@ function renderDetail() {
   `;
 }
 
+function renderTaskDetailModal() {
+  if (!state.taskDetailModalOpen || !state.selectedTaskId) return "";
+  return `
+    <div class="modal-backdrop" id="taskDetailBackdrop">
+      <section class="modal-card task-detail-modal-card">
+        <div class="modal-topline">
+          <span>任务详情</span>
+          <button class="icon-button" id="closeTaskDetailModal" type="button">×</button>
+        </div>
+        ${renderDetail()}
+      </section>
+    </div>
+  `;
+}
+
 function renderArchiveControls(task) {
   if (state.user.role !== "owner") return "";
+  const deleteButton = !task.archivedAt ? '<button class="button danger" id="deleteTaskButton" type="button">删除任务</button>' : "";
   if (task.archivedAt) {
     return `
       <div class="archive-actions">
@@ -52,7 +68,7 @@ function renderArchiveControls(task) {
       </div>
     `;
   }
-  return "";
+  return deleteButton ? `<div class="archive-actions">${deleteButton}</div>` : "";
 }
 
 function renderInlineInfo(task) {

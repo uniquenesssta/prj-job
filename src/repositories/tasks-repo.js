@@ -16,8 +16,9 @@ function insertTasks(tasks, db = getDatabase()) {
     INSERT INTO tasks (
       id, title, description, wechat, orderNo, taobaoId, taskType, sizeSpec, deliverFormat, customerRequirement,
       remark, remarkRecords, visibility,
-      creatorId, assigneeId, priority, status, progress, dueDate, createdAt, updatedAt, archivedAt, archiveZipPath
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      creatorId, assigneeId, priority, status, progress, dueDate, createdAt, updatedAt, archivedAt, archiveZipPath,
+      deletedAt, deletedBy
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertAttachment = db.prepare("INSERT INTO task_attachments (taskId, fileId, position) VALUES (?, ?, ?)");
 
@@ -45,7 +46,9 @@ function insertTasks(tasks, db = getDatabase()) {
       String(task.createdAt || new Date().toISOString()),
       String(task.updatedAt || new Date().toISOString()),
       String(task.archivedAt || ""),
-      String(task.archiveZipPath || "")
+      String(task.archiveZipPath || ""),
+      String(task.deletedAt || ""),
+      String(task.deletedBy || "")
     );
     (task.attachments || []).forEach((fileId, index) => insertAttachment.run(task.id, fileId, index));
   });
