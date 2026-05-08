@@ -79,6 +79,7 @@ function createSchema(db) {
       name TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       defaultRole TEXT NOT NULL DEFAULT 'designer',
+      customRoleName TEXT NOT NULL DEFAULT '',
       permissionPreset TEXT NOT NULL DEFAULT '{}',
       disabledAt TEXT NOT NULL DEFAULT '',
       deletedAt TEXT NOT NULL DEFAULT '',
@@ -243,6 +244,7 @@ function migrateUserOrganizationFields(db) {
 function migrateDepartmentFields(db) {
   const columns = db.prepare("PRAGMA table_info(departments)").all().map((column) => column.name);
   if (!columns.includes("defaultRole")) db.exec("ALTER TABLE departments ADD COLUMN defaultRole TEXT NOT NULL DEFAULT 'designer'");
+  if (!columns.includes("customRoleName")) db.exec("ALTER TABLE departments ADD COLUMN customRoleName TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("permissionPreset")) db.exec("ALTER TABLE departments ADD COLUMN permissionPreset TEXT NOT NULL DEFAULT '{}'");
   if (!columns.includes("disabledAt")) db.exec("ALTER TABLE departments ADD COLUMN disabledAt TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("deletedAt")) db.exec("ALTER TABLE departments ADD COLUMN deletedAt TEXT NOT NULL DEFAULT ''");
