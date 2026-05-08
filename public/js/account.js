@@ -22,7 +22,7 @@ function renderAccountManagementPage() {
           <span>角色</span>
           <select id="accountRoleFilter">
             <option value="all">全部角色</option>
-            ${Object.entries(roleLabels).map(([role, label]) => `<option value="${role}" ${state.accountRoleFilter === role ? "selected" : ""}>${label}</option>`).join("")}
+            ${accountRoleEntries().map(([role, label]) => `<option value="${role}" ${state.accountRoleFilter === role ? "selected" : ""}>${label}</option>`).join("")}
           </select>
         </label>
         <label>
@@ -97,7 +97,7 @@ function renderAccountModal() {
           <label>
             <span>角色</span>
             <select name="role">
-              ${Object.entries(roleLabels).map(([role, label]) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${label}</option>`).join("")}
+              ${accountRoleEntries().map(([role, label]) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${label}</option>`).join("")}
             </select>
           </label>
           <label>
@@ -129,6 +129,8 @@ function renderDepartmentModal() {
   const editing = state.departmentEditingId ? state.departments.find((item) => item.id === state.departmentEditingId) : null;
   const preset = parsePermissionObject(editing?.permissionPreset);
   const grouped = groupPermissionOptions();
+  const defaultRole = editing?.defaultRole || "designer";
+  const customRoleVisible = defaultRole === "custom";
   return `
     <div class="modal-backdrop" id="accountModalBackdrop">
       <section class="modal-card department-modal-card">
@@ -146,9 +148,13 @@ function renderDepartmentModal() {
               <label><span>部门名称</span><input name="name" value="${escapeAttr(editing?.name || "")}" required /></label>
               <label>
                 <span>默认角色</span>
-                <select name="defaultRole">
-                  ${Object.entries(roleLabels).map(([role, label]) => `<option value="${role}" ${editing?.defaultRole === role ? "selected" : ""}>${label}</option>`).join("")}
+                <select name="defaultRole" id="departmentDefaultRole">
+                  ${Object.entries(roleLabels).map(([role, label]) => `<option value="${role}" ${defaultRole === role ? "selected" : ""}>${label}</option>`).join("")}
                 </select>
+              </label>
+              <label class="custom-role-field" id="customRoleField" style="${customRoleVisible ? "" : "display:none"}">
+                <span>自定义角色名称</span>
+                <input name="customRoleName" id="customRoleNameInput" value="${escapeAttr(editing?.customRoleName || "")}" placeholder="例如：运营、主管、审核员" maxlength="24" ${customRoleVisible ? "required" : ""} />
               </label>
               <label>
                 <span>状态</span>
@@ -196,7 +202,7 @@ function renderDepartmentModal() {
               <article class="${dept.disabledAt ? "disabled" : ""}">
                 <strong>${escapeHtml(dept.name)}</strong>
                 <span>${escapeHtml(dept.description || "暂无说明")}</span>
-                <span>默认角色：${roleLabels[dept.defaultRole] || dept.defaultRole || "未设置"} · ${dept.disabledAt ? "禁用" : "启用"}</span>
+                <span>默认角色：${departmentRoleLabel(dept)} · ${dept.disabledAt ? "禁用" : "启用"}</span>
                 <div class="account-actions">
                   <button type="button" data-department-action="edit" data-department-id="${dept.id}">编辑</button>
                   <button type="button" data-department-action="toggle" data-department-id="${dept.id}">${dept.disabledAt ? "启用" : "禁用"}</button>
@@ -286,12 +292,24 @@ function bindAccountModalEvents() {
   });
   bindPermissionConflictGuards(document.querySelector("#permissionForm"));
   bindPermissionConflictGuards(document.querySelector("#departmentForm"));
+  document.querySelector("#departmentDefaultRole")?.addEventListener("change", syncCustomRoleField);
   document.querySelector("#departmentForm")?.addEventListener("submit", handleDepartmentSubmit);
   document.querySelector("#newDepartmentButton")?.addEventListener("click", () => {
     state.departmentEditingId = "";
     render();
   });
   document.querySelector(".department-preview")?.addEventListener("click", handleDepartmentListClick);
+}
+
+function syncCustomRoleField() {
+  const select = document.querySelector("#departmentDefaultRole");
+  const field = document.querySelector("#customRoleField");
+  const input = document.querySelector("#customRoleNameInput");
+  if (!select || !field || !input) return;
+  const isCustom = select.value === "custom";
+  field.style.display = isCustom ? "" : "none";
+  input.required = isCustom;
+  if (!isCustom) input.value = "";
 }
 
 function bindPermissionConflictGuards(root) {
@@ -313,6 +331,7 @@ async function handleDepartmentSubmit(event) {
     name: form.get("name"),
     description: form.get("description"),
     defaultRole: form.get("defaultRole"),
+    customRoleName: form.get("customRoleName"),
     disabled: form.get("disabled"),
     permissionPreset: JSON.stringify(normalizePermissionFormData(form)),
   };
@@ -397,6 +416,16 @@ function departmentName(id) {
   return departmentById(id)?.name || "未分配";
 }
 
+function departmentRoleLabel(department) {
+  if (!department) return "未设置";
+  if (department.defaultRole === "custom") return department.customRoleName || "自定义";
+  return roleLabels[department.defaultRole] || department.defaultRole || "未设置";
+}
+
+function accountRoleEntries() {
+  return Object.entries(roleLabels).filter(([role]) => role !== "custom");
+}
+
 function departmentOptions(selectedId) {
   return state.departments
     .filter((dept) => !dept.disabledAt || dept.id === selectedId)
@@ -477,6 +506,7 @@ function rolePermissionCodes(role) {
       "comments.write",
       "notes.write",
     ],
+    custom: [],
   };
   return map[role] || [];
 }
