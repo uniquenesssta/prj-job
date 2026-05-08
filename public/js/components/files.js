@@ -35,7 +35,11 @@ function renderUploadForm() {
 
 function renderFiles(task) {
   if (!task.attachments.length) return '<section class="detail-card file-list"><h2>文件</h2><div class="empty">还没有上传文件</div></section>';
-  const canDownload = userHasPermission("files.download") && canOperateTask(task);
+
+  // 能看到任务且拥有下载权限时就显示下载入口；最终权限仍由后端 canDownloadTaskFile 严格校验。
+  // 这样可以避免“拥有查看其他设计师/客服权限但前端不显示下载按钮”的问题。
+  const canDownload = userHasPermission("files.download");
+
   const fileItem = (file) => `
     <article class="file-item">
       <div>
@@ -43,7 +47,7 @@ function renderFiles(task) {
         <span>${fileUsageLabels[file.usage || "other"] || "其他"} · ${formatSize(file.size)} · ${escapeHtml(file.uploadedByName)}（${roleLabels[file.uploadedByRole] || "成员"}） · ${formatDateTime(file.uploadedAt)}</span>
       </div>
       <div class="file-actions">
-        ${canDownload ? `<a href="/api/files/${file.id}">下载</a>` : ""}
+        ${canDownload ? `<button class="button compact-button" type="button" data-download-file-id="${file.id}" data-download-file-name="${escapeAttr(file.originalName)}">下载</button>` : ""}
         ${canDeleteFile(file) ? `<button class="button danger compact-button" type="button" data-delete-file-id="${file.id}">删除</button>` : ""}
       </div>
     </article>

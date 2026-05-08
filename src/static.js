@@ -20,9 +20,16 @@ const mimeTypes = {
 };
 
 function serveStatic(req, res, pathname) {
-  const cleanPath = pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
-  const filePath = path.normalize(path.join(PUBLIC_DIR, cleanPath));
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  let cleanPath;
+  try {
+    cleanPath = pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
+  } catch {
+    sendError(res, 400, "访问路径不正确");
+    return;
+  }
+  const filePath = path.resolve(PUBLIC_DIR, `.${cleanPath}`);
+  const relative = path.relative(PUBLIC_DIR, filePath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     sendError(res, 403, "无权访问该文件");
     return;
   }
@@ -34,6 +41,7 @@ function serveStatic(req, res, pathname) {
     res.writeHead(200, {
       "Content-Type": mimeTypes[path.extname(filePath).toLowerCase()] || "application/octet-stream",
       "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
     });
     res.end(data);
   });

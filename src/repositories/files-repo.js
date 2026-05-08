@@ -5,30 +5,40 @@ function listFiles(db = getDatabase()) {
 }
 
 function insertFiles(files, db = getDatabase()) {
+  (files || []).forEach((file) => insertFile(file, db));
+}
+
+function insertFile(file, db = getDatabase()) {
   const insert = db.prepare(`
     INSERT INTO files (
       id, taskId, originalName, storedName, relativePath, folderName, size, mimeType,
       storageArea, usage, uploadedBy, uploadedByName, uploadedByRole, uploadedAt
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  (files || []).forEach((file) => {
-    insert.run(
-      file.id,
-      file.taskId,
-      file.originalName,
-      file.storedName,
-      file.relativePath || file.storedName,
-      file.folderName || "",
-      Number(file.size || 0),
-      file.mimeType || "application/octet-stream",
-      file.storageArea || "upload",
-      file.usage || "attachment",
-      file.uploadedBy,
-      file.uploadedByName || "",
-      file.uploadedByRole || "",
-      file.uploadedAt || new Date().toISOString()
-    );
-  });
+  insert.run(...fileValues(file));
+}
+
+function deleteFileRecord(fileId, db = getDatabase()) {
+  db.prepare("DELETE FROM files WHERE id = ?").run(fileId);
+}
+
+function fileValues(file) {
+  return [
+    file.id,
+    file.taskId,
+    file.originalName,
+    file.storedName,
+    file.relativePath || file.storedName,
+    file.folderName || "",
+    Number(file.size || 0),
+    file.mimeType || "application/octet-stream",
+    file.storageArea || "upload",
+    file.usage || "attachment",
+    file.uploadedBy,
+    file.uploadedByName || "",
+    file.uploadedByRole || "",
+    file.uploadedAt || new Date().toISOString(),
+  ];
 }
 
 function normalizeFile(file) {
@@ -45,6 +55,8 @@ function normalizeFileUsage(value) {
 }
 
 module.exports = {
+  deleteFileRecord,
+  insertFile,
   insertFiles,
   listFiles,
 };

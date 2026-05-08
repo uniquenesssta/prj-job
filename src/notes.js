@@ -1,16 +1,20 @@
+const fs = require("fs");
 const { readBody, readJson, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
-const { createId, readDb, writeDb } = require("./storage");
+const { createId, readDb } = require("./storage");
 const {
   deletePersonalNoteForUser,
   insertPersonalNote,
   listPersonalNotesForUserTask,
 } = require("./repositories/notes-repo");
+const { deleteFileRecord, insertFile } = require("./repositories/files-repo");
+const { updateTask } = require("./repositories/tasks-repo");
 const { enqueueUpload } = require("./upload-queue");
-const { parseMultipartParts } = require("./files");
-const { isRemarkImage, saveRemarkImage } = require("./remarks");
+const { parseMultipartBoundary, parseMultipartParts, storedFilePath } = require("./files");
+const { saveRemarkImage, validateRemarkImages, MAX_REMARK_IMAGE_UPLOAD_SIZE } = require("./remarks");
 const { requireUser } = require("./auth");
 const { canAccessTask, canReadPersonalNote, canWritePersonalNote } = require("./permissions");
+const { runInTransaction } = require("./database");
 const { insertOperationLog } = require("./repositories/system-repo");
 
 function handleGetPersonalNote(req, res, taskId) {
@@ -66,6 +70,8 @@ async function handlePutPersonalNote(req, res, taskId) {
     createdAt: now,
   };
   insertPersonalNote(note);
+  task.updatedAt = now;
+  updateTask(task);
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -80,7 +86,7 @@ async function handlePutPersonalNote(req, res, taskId) {
 }
 
 async function handleMultipartPersonalNote(req, res, user, taskId) {
-  const boundary = (req.headers["content-type"] || "").match(/boundary=(.+)$/)?.[1];
+  const boundary = parseMultipartBoundary(req.headers["content-type"] || "");
   if (!boundary) {
     sendError(res, 400, "个人备注格式不正确");
     return;
@@ -98,9 +104,25 @@ async function handleMultipartPersonalNote(req, res, user, taskId) {
       return;
     }
 
-    const { fields, files } = parseMultipartParts(await readBody(req), boundary);
+    let body;
+    try {
+      body = await readBody(req, MAX_REMARK_IMAGE_UPLOAD_SIZE);
+    } catch (error) {
+      if (error.message === "请求内容过大") {
+        sendError(res, 413, `个人备注图片过大，单次上传不能超过 ${Math.floor(MAX_REMARK_IMAGE_UPLOAD_SIZE / 1024 / 1024)} MB`);
+        return;
+      }
+      throw error;
+    }
+
+    const { fields, files } = parseMultipartParts(body, boundary);
     const text = String(fields.text || "").trim();
-    const images = files.filter(isRemarkImage);
+    const imageValidation = validateRemarkImages(files.filter((file) => file.name === "images"));
+    if (!imageValidation.ok) {
+      sendError(res, 400, imageValidation.error);
+      return;
+    }
+    const images = imageValidation.images;
     if (!text && !images.length) {
       sendError(res, 400, "请填写个人备注或添加图片");
       return;
@@ -116,9 +138,12 @@ async function handleMultipartPersonalNote(req, res, user, taskId) {
       imageFileIds: imageRecords.map((file) => file.id),
       createdAt: now,
     };
-    db.files.push(...imageRecords);
     task.updatedAt = now;
-    writeDb(db);
+    runInTransaction((database) => {
+      imageRecords.forEach((record) => insertFile(record, database));
+      updateTask(task, database);
+    });
+    db.files.push(...imageRecords);
     insertPersonalNote(note);
     insertOperationLog({
       userId: user.id,
@@ -153,11 +178,13 @@ function handleDeletePersonalNote(req, res, taskId, noteId) {
     return;
   }
   const imageIds = new Set(note.imageFileIds || []);
-  if (imageIds.size) {
-    db.files = db.files.filter((file) => !imageIds.has(file.id));
-  }
+  const imageFiles = db.files.filter((file) => imageIds.has(file.id));
+  imageFiles.forEach(deletePhysicalFileQuietly);
   task.updatedAt = new Date().toISOString();
-  writeDb(db);
+  runInTransaction((database) => {
+    imageFiles.forEach((file) => deleteFileRecord(file.id, database));
+    updateTask(task, database);
+  });
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -169,6 +196,15 @@ function handleDeletePersonalNote(req, res, taskId, noteId) {
   });
   broadcast("tasks-changed", { taskId, reason: "personal-note-deleted" });
   sendJson(res, 200, { ok: true, noteId });
+}
+
+function deletePhysicalFileQuietly(file) {
+  try {
+    const filePath = storedFilePath(file);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (error) {
+    console.warn(`删除备注图片失败：${file?.id || "unknown"} ${error.message}`);
+  }
 }
 
 function enrichPersonalNote(db, note) {

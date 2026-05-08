@@ -1,13 +1,7 @@
 const { URL } = require("url");
 const { readJson, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
-const {
-  createId,
-  enrichTask,
-  readComments,
-  readDb,
-  writeDb,
-} = require("./storage");
+const { createId, enrichTask, readComments, readDb } = require("./storage");
 const { requireUser } = require("./auth");
 const {
   canAccessTask,
@@ -23,6 +17,7 @@ const {
   hasPermission,
 } = require("./permissions");
 const { insertOperationLog, markArchiveRecordRestored } = require("./repositories/system-repo");
+const { insertTask, updateTask } = require("./repositories/tasks-repo");
 
 const TASK_EDIT_FIELDS = [
   "title",
@@ -88,9 +83,9 @@ async function handleCreateTask(req, res) {
   const db = readDb();
   const comments = readComments();
   const assigneeId = isPrivateDesignerTask ? user.id : body.assigneeId;
-  const assignee = db.users.find((item) => item.id === assigneeId && item.role === "designer");
-  if (!body.title || !assignee) {
-    sendError(res, 400, "请填写任务标题并选择设计师");
+  const assignee = db.users.find((item) => item.id === assigneeId && item.role === "designer" && !item.disabledAt && !item.deletedAt);
+  if (!String(body.title || "").trim() || !assignee) {
+    sendError(res, 400, "请填写任务标题并选择有效设计师");
     return;
   }
   const now = new Date().toISOString();
@@ -117,11 +112,13 @@ async function handleCreateTask(req, res) {
     createdAt: now,
     updatedAt: now,
     attachments: [],
+    archivedAt: "",
+    archiveZipPath: "",
     deletedAt: "",
     deletedBy: "",
   };
+  insertTask(task);
   db.tasks.push(task);
-  writeDb(db);
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -157,6 +154,18 @@ async function handleUpdateTask(req, res, taskId) {
     return;
   }
 
+  if (Object.hasOwn(body, "assigneeId")) {
+    const nextAssignee = db.users.find((item) => item.id === body.assigneeId && item.role === "designer" && !item.disabledAt && !item.deletedAt);
+    if (!nextAssignee) {
+      sendError(res, 400, "请选择有效设计师");
+      return;
+    }
+    if (task.visibility === "private" && !hasPermission(user, "tasks.read_all") && body.assigneeId !== user.id) {
+      sendError(res, 403, "个人任务不能改派给其他设计师");
+      return;
+    }
+  }
+
   if (Object.hasOwn(body, "status")) {
     const nextStatus = String(body.status || "");
     if (!canUpdateTaskStatus(user, task) || !canChangeTaskStatus(user, task, nextStatus)) {
@@ -177,13 +186,7 @@ async function handleUpdateTask(req, res, taskId) {
   if (body.deliverFormat !== undefined) task.deliverFormat = String(body.deliverFormat).trim();
   if (body.customerRequirement !== undefined) task.customerRequirement = String(body.customerRequirement).trim();
   if (body.remark !== undefined) task.remark = String(body.remark).trim();
-  if (body.assigneeId !== undefined && db.users.some((item) => item.id === body.assigneeId && item.role === "designer")) {
-    if (task.visibility === "private" && !hasPermission(user, "tasks.read_all") && body.assigneeId !== user.id) {
-      sendError(res, 403, "个人任务不能改派给其他设计师");
-      return;
-    }
-    task.assigneeId = body.assigneeId;
-  }
+  if (body.assigneeId !== undefined) task.assigneeId = body.assigneeId;
   if (body.dueDate !== undefined) task.dueDate = String(body.dueDate).trim();
   if (["low", "normal", "high", "urgent"].includes(body.priority)) task.priority = body.priority;
   if (["todo", "doing", "review", "done", "blocked"].includes(body.status)) {
@@ -192,7 +195,7 @@ async function handleUpdateTask(req, res, taskId) {
   }
   task.updatedAt = new Date().toISOString();
   const after = pickTaskSnapshot(task, Object.keys(before));
-  writeDb(db);
+  updateTask(task);
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -223,7 +226,7 @@ async function handleDeleteTask(req, res, taskId) {
   task.deletedAt = now;
   task.deletedBy = user.id;
   task.updatedAt = now;
-  writeDb(db);
+  updateTask(task);
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -254,7 +257,7 @@ async function handleRestoreTask(req, res, taskId) {
   task.archiveZipPath = "";
   const now = new Date().toISOString();
   task.updatedAt = now;
-  writeDb(db);
+  updateTask(task);
   markArchiveRecordRestored(task.id, now);
   insertOperationLog({
     userId: user.id,

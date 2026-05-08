@@ -17,6 +17,7 @@ const { handleDeleteFile, handleDownload, handleInlineFile, handleUpload } = req
 const {
   handleArchiveOperationLogs,
   handleCleanMissingFiles,
+  handleCompactDatabases,
   handleMaintenanceSummary,
   handleOperationLogs,
   handleScanMissingFiles,
@@ -59,6 +60,7 @@ function route(req, res) {
       if (req.method === "POST" && pathname === "/api/maintenance/clean-missing-files") return handleCleanMissingFiles(req, res);
       if (req.method === "POST" && pathname === "/api/maintenance/scan-orphan-files") return handleScanOrphanFiles(req, res);
       if (req.method === "POST" && pathname === "/api/maintenance/archive-operation-logs") return handleArchiveOperationLogs(req, res);
+      if (req.method === "POST" && pathname === "/api/maintenance/compact-databases") return handleCompactDatabases(req, res);
       if (req.method === "GET" && pathname === "/api/operation-logs") return handleOperationLogs(req, res);
       if (req.method === "POST" && pathname === "/api/archive") return handleArchiveDoneTasks(req, res);
       if (req.method === "GET" && pathname === "/api/tasks") return handleGetTasks(req, res);

@@ -94,7 +94,9 @@ function canUploadToTask(user, task) {
 }
 
 function canDownloadTaskFile(user, task, file) {
-  return Boolean(file && task && file.taskId === task.id && hasPermission(user, "files.download") && canOperateTask(user, task));
+  // 下载附件属于“查看任务内容”的延伸能力。
+  // 之前使用 canOperateTask，会导致拥有“查看其他设计师/客服”权限的人能看到任务却不能下载附件。
+  return Boolean(file && task && file.taskId === task.id && hasPermission(user, "files.download") && canAccessTask(user, task));
 }
 
 function canDeleteUploadedFile(user, file) {

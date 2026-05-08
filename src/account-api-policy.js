@@ -3,19 +3,20 @@ const { readJson, sendError, sendJson } = require("./http-utils");
 const { requireUser } = require("./auth");
 const { getDatabase } = require("./database");
 const { createId, hashPassword, readDb } = require("./storage");
-const { hasAnyPermission, hasPermission, resolveUserPermissionCodes } = require("./permissions");
+const { canManageUsers, hasAnyPermission, hasPermission, resolveUserPermissionCodes } = require("./permissions");
 const { insertOperationLog } = require("./repositories/system-repo");
+const { updateTask } = require("./repositories/tasks-repo");
 const { applyDisableTransfer, validateDisableTransfer } = require("./user-disable-transfer");
 
 const SUPER_ADMIN_USERNAME = "admin";
 const MANAGED_ROLES = new Set(["designer", "service", "custom"]);
 const USER_SECRET_COLUMN = "passwordHash";
 
-function requireSuperAdmin(req, res) {
+function requireAccountManager(req, res) {
   const user = requireUser(req, res);
   if (!user) return null;
-  if (user.username !== SUPER_ADMIN_USERNAME || user.role !== "owner") {
-    sendError(res, 403, "只有最高管理员 admin 可以管理账号");
+  if (!canManageUsers(user)) {
+    sendError(res, 403, "当前账号没有账号管理权限");
     return null;
   }
   return user;
@@ -32,7 +33,7 @@ function handlePolicyUsers(req, res) {
   if (!currentUser) return;
   ensureAccountPolicySchema();
   const allUsers = readDb().users;
-  const canViewAllUsers = currentUser.username === SUPER_ADMIN_USERNAME || hasAnyPermission(currentUser, ["users.manage", "tasks.read_all"]);
+  const canViewAllUsers = hasAnyPermission(currentUser, ["users.manage", "tasks.read_all"]);
   const visibleUsers = allUsers.filter((item) => {
     if (item.deletedAt) return false;
     if (canViewAllUsers || item.id === currentUser.id) return true;
@@ -45,7 +46,7 @@ function handlePolicyUsers(req, res) {
 }
 
 async function handlePolicyCreateUser(req, res) {
-  const admin = requireSuperAdmin(req, res);
+  const admin = requireAccountManager(req, res);
   if (!admin) return;
   ensureAccountPolicySchema();
   const body = await readJson(req);
@@ -108,7 +109,7 @@ async function handlePolicyCreateUser(req, res) {
 }
 
 async function handlePolicyUpdateUser(req, res, userId) {
-  const admin = requireSuperAdmin(req, res);
+  const admin = requireAccountManager(req, res);
   if (!admin) return;
   ensureAccountPolicySchema();
   const body = await readJson(req);
@@ -124,6 +125,10 @@ async function handlePolicyUpdateUser(req, res, userId) {
     return;
   }
   if (target.username === SUPER_ADMIN_USERNAME) {
+    if (admin.username !== SUPER_ADMIN_USERNAME) {
+      sendError(res, 403, "最高管理员 admin 只能由 admin 自己修改");
+      return;
+    }
     if (String(body.username || target.username).trim() !== SUPER_ADMIN_USERNAME) {
       sendError(res, 400, "admin 账号名不可变更");
       return;
@@ -213,7 +218,7 @@ async function handlePolicyUpdateUser(req, res, userId) {
 }
 
 async function handlePolicyDeleteUser(req, res, userId) {
-  const admin = requireSuperAdmin(req, res);
+  const admin = requireAccountManager(req, res);
   if (!admin) return;
   ensureAccountPolicySchema();
   const db = getDatabase();
@@ -234,7 +239,7 @@ async function handlePolicyDeleteUser(req, res, userId) {
     targetType: "user",
     targetId: target.id,
     targetTitle: target.username,
-    detail: "最高管理员 admin 完全删除账号",
+    detail: "账号被完全删除",
   });
   broadcast("users-changed", { userId: target.id, deleted: true });
   broadcast("tasks-changed", { userId: target.id, reason: "user-hard-deleted" });
@@ -258,9 +263,7 @@ function publicPolicyUser(user) {
 }
 
 function persistTaskResponsibilityChanges(tasks) {
-  const db = getDatabase();
-  const update = db.prepare("UPDATE tasks SET creatorId = ?, assigneeId = ?, updatedAt = ? WHERE id = ?");
-  (tasks || []).forEach((task) => update.run(task.creatorId || "", task.assigneeId || "", task.updatedAt || new Date().toISOString(), task.id));
+  (tasks || []).forEach((task) => updateTask(task));
 }
 
 function normalizeManagedRole(value) {

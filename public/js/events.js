@@ -122,6 +122,22 @@ function bindDetailEvents() {
     render();
   });
 
+  document.querySelectorAll("[data-download-file-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "下载中";
+      try {
+        await downloadFile(button.dataset.downloadFileId, button.dataset.downloadFileName || "download");
+      } catch (error) {
+        alert(error.message || "下载失败");
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    });
+  });
+
   document.querySelectorAll("[data-delete-file-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       await deleteFile(button.dataset.deleteFileId);
@@ -208,4 +224,55 @@ async function deleteFile(fileId) {
   await api(`/api/files/${fileId}`, { method: "DELETE" });
   await loadData();
   render();
+}
+
+async function downloadFile(fileId, filename) {
+  const response = await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
+    method: "GET",
+    credentials: "same-origin",
+  });
+
+  if (!response.ok) {
+    const message = await readDownloadError(response);
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename || getFilenameFromDisposition(response.headers.get("Content-Disposition")) || "download";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+async function readDownloadError(response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      const data = await response.json();
+      return data.error || `下载失败（${response.status}）`;
+    } catch {
+      return `下载失败（${response.status}）`;
+    }
+  }
+  const text = await response.text().catch(() => "");
+  return text || `下载失败（${response.status}）`;
+}
+
+function getFilenameFromDisposition(value) {
+  const header = String(value || "");
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const fallbackMatch = header.match(/filename="?([^";]+)"?/i);
+  return fallbackMatch ? fallbackMatch[1] : "";
 }

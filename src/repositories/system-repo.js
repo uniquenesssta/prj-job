@@ -133,6 +133,47 @@ function listLogArchiveRecords(db = getOperationDatabase()) {
   return db.prepare("SELECT * FROM log_archive_records ORDER BY archiveDate DESC, rowid DESC LIMIT 100").all();
 }
 
+function pruneArchivedOperationLogs(options = {}, db = getOperationDatabase()) {
+  const cutoffDate = String(options.cutoffDate || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoffDate)) {
+    return { cutoffDate, operationLogs: 0, maintenanceRecords: 0, skipped: true };
+  }
+  const archivedDates = new Set(
+    db.prepare("SELECT archiveDate FROM log_archive_records WHERE archiveDate < ?").all(cutoffDate)
+      .map((row) => String(row.archiveDate || "").trim())
+      .filter(Boolean)
+  );
+  if (!archivedDates.size) return { cutoffDate, operationLogs: 0, maintenanceRecords: 0, archivedDays: 0 };
+
+  const operationIds = db.prepare("SELECT id, createdAt FROM operation_logs").all()
+    .filter((row) => archivedDates.has(localDateString(row.createdAt)))
+    .map((row) => row.id);
+  const maintenanceIds = db.prepare("SELECT id, createdAt FROM maintenance_records").all()
+    .filter((row) => archivedDates.has(localDateString(row.createdAt)))
+    .map((row) => row.id);
+
+  const deleteOperation = db.prepare("DELETE FROM operation_logs WHERE id = ?");
+  const deleteMaintenance = db.prepare("DELETE FROM maintenance_records WHERE id = ?");
+  operationIds.forEach((id) => deleteOperation.run(id));
+  maintenanceIds.forEach((id) => deleteMaintenance.run(id));
+
+  return {
+    cutoffDate,
+    operationLogs: operationIds.length,
+    maintenanceRecords: maintenanceIds.length,
+    archivedDays: archivedDates.size,
+  };
+}
+
+function localDateString(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeOperationLog(entry) {
   return {
     id: entry.id || createDatabaseId("op"),
@@ -160,4 +201,5 @@ module.exports = {
   listTaskFieldDefinitions,
   listTaskStatuses,
   markArchiveRecordRestored,
+  pruneArchivedOperationLogs,
 };

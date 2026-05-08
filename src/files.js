@@ -3,11 +3,19 @@ const path = require("path");
 const { REMARK_IMAGE_DIR, UPLOAD_DIR } = require("./config");
 const { readBody, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
-const { createId, enrichTask, readDb, writeDb } = require("./storage");
+const { createId, enrichTask, readDb } = require("./storage");
 const { requireUser } = require("./auth");
 const { canDeleteUploadedFile, canDownloadTaskFile, canUploadToTask } = require("./permissions");
 const { enqueueUpload } = require("./upload-queue");
 const { insertOperationLog } = require("./repositories/system-repo");
+const { runInTransaction } = require("./database");
+const { deleteFileRecord, insertFile } = require("./repositories/files-repo");
+const { attachFileToTask, detachFileFromAllTasks, updateTaskUpdatedAt } = require("./repositories/tasks-repo");
+
+const DEFAULT_MAX_UPLOAD_SIZE = 200 * 1024 * 1024;
+const MAX_UPLOAD_SIZE = Number.isFinite(Number(process.env.MAX_UPLOAD_SIZE))
+  ? Number(process.env.MAX_UPLOAD_SIZE)
+  : DEFAULT_MAX_UPLOAD_SIZE;
 
 async function handleUpload(req, res, taskId) {
   const user = requireUser(req, res);
@@ -22,7 +30,7 @@ async function handleUpload(req, res, taskId) {
     sendError(res, 403, "无权上传到该任务");
     return;
   }
-  const boundary = (req.headers["content-type"] || "").match(/boundary=(.+)$/)?.[1];
+  const boundary = parseMultipartBoundary(req.headers["content-type"] || "");
   if (!boundary) {
     sendError(res, 400, "上传格式不正确");
     return;
@@ -38,7 +46,19 @@ async function handleUpload(req, res, taskId) {
       sendError(res, 403, "无权上传到该任务");
       return;
     }
-    const parsed = parseMultipartParts(await readBody(req), boundary);
+
+    let body;
+    try {
+      body = await readBody(req, MAX_UPLOAD_SIZE);
+    } catch (error) {
+      if (error.message === "请求内容过大") {
+        sendError(res, 413, `上传文件过大，单次上传不能超过 ${formatLimitSize(MAX_UPLOAD_SIZE)}`);
+        return;
+      }
+      throw error;
+    }
+
+    const parsed = parseMultipartParts(body, boundary);
     const file = parsed.files.find((item) => item.name === "file") || null;
     const usage = normalizeFileUsage(parsed.fields.usage || parsed.fields.fileCategory || defaultFileUsage(user));
     if (!file || !file.data.length) {
@@ -68,10 +88,13 @@ async function handleUpload(req, res, taskId) {
       uploadedByRole: user.role,
       uploadedAt: new Date().toISOString(),
     };
-    nextDb.files.push(record);
     nextTask.attachments.push(record.id);
     nextTask.updatedAt = new Date().toISOString();
-    writeDb(nextDb);
+    runInTransaction((database) => {
+      insertFile(record, database);
+      attachFileToTask(nextTask.id, record.id, database);
+      updateTaskUpdatedAt(nextTask.id, nextTask.updatedAt, database);
+    });
     insertOperationLog({
       userId: user.id,
       userName: user.name,
@@ -88,6 +111,11 @@ async function handleUpload(req, res, taskId) {
 
 function parseMultipartFile(buffer, boundary) {
   return parseMultipartParts(buffer, boundary).files.find((file) => file.name === "file") || null;
+}
+
+function parseMultipartBoundary(contentType) {
+  const match = String(contentType || "").match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  return (match?.[1] || match?.[2] || "").trim();
 }
 
 function parseMultipartParts(buffer, boundary) {
@@ -191,12 +219,12 @@ function handleDeleteFile(req, res, fileId) {
   }
   const filePath = storedFilePath(file);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  db.files.splice(fileIndex, 1);
-  db.tasks.forEach((item) => {
-    item.attachments = (item.attachments || []).filter((attachmentId) => attachmentId !== file.id);
-    if (item.id === task.id) item.updatedAt = new Date().toISOString();
+  const updatedAt = new Date().toISOString();
+  runInTransaction((database) => {
+    detachFileFromAllTasks(file.id, database);
+    deleteFileRecord(file.id, database);
+    updateTaskUpdatedAt(task.id, updatedAt, database);
   });
-  writeDb(db);
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -232,10 +260,22 @@ function streamFile(req, res, fileId, dispositionType) {
   res.writeHead(200, {
     "Content-Type": file.mimeType || "application/octet-stream",
     "Content-Length": fs.statSync(filePath).size,
-    "Content-Disposition": `${dispositionType}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    "Content-Disposition": contentDispositionHeader(dispositionType, file.originalName || file.storedName || "download.bin"),
     "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
   });
   fs.createReadStream(filePath).pipe(res);
+}
+
+function contentDispositionHeader(dispositionType, filename) {
+  const originalName = filename || "download.bin";
+  const fallbackName = sanitizeFilename(originalName).replace(/["\\]/g, "_") || "download.bin";
+  return `${dispositionType}; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(originalName)}`;
+}
+
+function formatLimitSize(size) {
+  if (size < 1024 * 1024) return `${Math.floor(size / 1024)} KB`;
+  return `${Math.floor(size / 1024 / 1024)} MB`;
 }
 
 function uniquePath(filePath) {
@@ -252,12 +292,14 @@ function uniquePath(filePath) {
 }
 
 module.exports = {
+  contentDispositionHeader,
   formatArchiveStamp,
   formatDate,
   handleDeleteFile,
   handleDownload,
   handleInlineFile,
   handleUpload,
+  parseMultipartBoundary,
   parseMultipartParts,
   sanitizeFilename,
   sanitizeFolderPart,
