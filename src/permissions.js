@@ -178,10 +178,31 @@ function canAccessDepartmentTask(user, task) {
     if (taskDepartmentIds.has(ownDepartment.id)) return true;
   }
   if (departmentFlag(ownDepartment.allowViewChildDepartmentTasks)) {
-    const childIds = childDepartmentIds(ownDepartment.id, departments);
+    const childIds = visibleChildDepartmentIds(ownDepartment, departments);
     return [...taskDepartmentIds].some((departmentId) => childIds.has(departmentId));
   }
   return false;
+}
+
+function visibleChildDepartmentIds(department, departments) {
+  const allChildIds = childDepartmentIds(department.id, departments);
+  const selectedScope = parseChildDepartmentScope(department.childDepartmentScope).filter((id) => allChildIds.has(id));
+  if (!selectedScope.length) return allChildIds;
+  const result = new Set();
+  selectedScope.forEach((id) => {
+    result.add(id);
+    childDepartmentIds(id, departments).forEach((childId) => result.add(childId));
+  });
+  return result;
+}
+
+function parseChildDepartmentScope(value) {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value || "[]") : value;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
 }
 
 function childDepartmentIds(parentId, departments) {
