@@ -27,7 +27,7 @@ async function handleCreateDepartment(req, res) {
   const name = String(body.name || "").trim();
   const defaultRole = normalizeRole(body.defaultRole);
   const customRoleName = normalizeCustomRoleName(defaultRole, body.customRoleName);
-  const parentId = normalizeParentId(body.parentId, departments);
+  const parentDepartmentIds = normalizeParentDepartmentIds(body.parentDepartmentIds ?? body.parentId, departments);
   const managerId = normalizeManagerId(body.managerId);
   if (!name) {
     sendError(res, 400, "请填写部门名称");
@@ -45,7 +45,8 @@ async function handleCreateDepartment(req, res) {
     defaultRole,
     customRoleName,
     permissionPreset: normalizePermissionPreset(body.permissionPreset),
-    parentId,
+    parentId: parentDepartmentIds[0] || "",
+    parentDepartmentIds: JSON.stringify(parentDepartmentIds),
     managerId,
     allowViewOwnDepartmentTasks: normalizeBoolean(body.allowViewOwnDepartmentTasks),
     allowViewChildDepartmentTasks: normalizeBoolean(body.allowViewChildDepartmentTasks),
@@ -63,7 +64,7 @@ async function handleCreateDepartment(req, res) {
     targetType: "department",
     targetId: department.id,
     targetTitle: department.name,
-    detail: JSON.stringify({ defaultRole, customRoleName, parentId, managerId, childDepartmentScope: department.childDepartmentScope }),
+    detail: JSON.stringify({ defaultRole, customRoleName, parentDepartmentIds, managerId, childDepartmentScope: department.childDepartmentScope }),
   });
   sendJson(res, 201, { department });
 }
@@ -87,8 +88,10 @@ async function handleUpdateDepartment(req, res, departmentId) {
   const customRoleName = body.customRoleName !== undefined
     ? normalizeCustomRoleName(defaultRole, body.customRoleName)
     : normalizeCustomRoleName(defaultRole, current.customRoleName);
-  const parentId = body.parentId !== undefined ? normalizeParentId(body.parentId, departments, current.id) : current.parentId || "";
-  if (parentId && createsDepartmentCycle(current.id, parentId, departments)) {
+  const parentDepartmentIds = body.parentDepartmentIds !== undefined || body.parentId !== undefined
+    ? normalizeParentDepartmentIds(body.parentDepartmentIds ?? body.parentId, departments, current.id)
+    : normalizeParentDepartmentIds(current.parentDepartmentIds || current.parentId, departments, current.id);
+  if (parentDepartmentIds.some((parentId) => createsDepartmentCycle(current.id, parentId, departments))) {
     sendError(res, 400, "不能把部门移动到自己的下级部门中");
     return;
   }
@@ -99,7 +102,8 @@ async function handleUpdateDepartment(req, res, departmentId) {
     defaultRole,
     customRoleName,
     permissionPreset: body.permissionPreset !== undefined ? normalizePermissionPreset(body.permissionPreset) : current.permissionPreset,
-    parentId,
+    parentId: parentDepartmentIds[0] || "",
+    parentDepartmentIds: JSON.stringify(parentDepartmentIds),
     managerId: body.managerId !== undefined ? normalizeManagerId(body.managerId) : current.managerId || "",
     allowViewOwnDepartmentTasks: body.allowViewOwnDepartmentTasks !== undefined ? normalizeBoolean(body.allowViewOwnDepartmentTasks) : Boolean(current.allowViewOwnDepartmentTasks),
     allowViewChildDepartmentTasks: body.allowViewChildDepartmentTasks !== undefined ? normalizeBoolean(body.allowViewChildDepartmentTasks) : Boolean(current.allowViewChildDepartmentTasks),
@@ -129,7 +133,7 @@ async function handleUpdateDepartment(req, res, departmentId) {
     detail: JSON.stringify({
       defaultRole: next.defaultRole,
       customRoleName: next.customRoleName,
-      parentId: next.parentId,
+      parentDepartmentIds,
       managerId: next.managerId,
       allowViewOwnDepartmentTasks: Boolean(next.allowViewOwnDepartmentTasks),
       allowViewChildDepartmentTasks: Boolean(next.allowViewChildDepartmentTasks),
@@ -144,13 +148,19 @@ function applyDirectChildDepartments(parentId, value, departments, now) {
   const selectedIds = new Set(normalizeDepartmentIdArray(value, departments, parentId));
   departments.forEach((department) => {
     if (department.id === parentId) return;
+    const currentParents = normalizeParentDepartmentIds(department.parentDepartmentIds || department.parentId, departments, department.id);
     const shouldBeChild = selectedIds.has(department.id);
-    const isDirectChild = department.parentId === parentId;
+    const isDirectChild = currentParents.includes(parentId);
     if (!shouldBeChild && !isDirectChild) return;
     if (shouldBeChild && createsDepartmentCycle(parentId, department.id, departments)) return;
+    const nextParents = new Set(currentParents);
+    if (shouldBeChild) nextParents.add(parentId);
+    else nextParents.delete(parentId);
+    const nextParentIds = [...nextParents];
     updateDepartment({
       ...department,
-      parentId: shouldBeChild ? parentId : "",
+      parentId: nextParentIds[0] || "",
+      parentDepartmentIds: JSON.stringify(nextParentIds),
       updatedAt: now,
     });
   });
@@ -165,10 +175,9 @@ function normalizeCustomRoleName(defaultRole, value) {
   return String(value || "").trim().slice(0, 24);
 }
 
-function normalizeParentId(value, departments, currentId = "") {
-  const parentId = String(value || "").trim();
-  if (!parentId || parentId === currentId) return "";
-  return departments.some((department) => department.id === parentId) ? parentId : "";
+function normalizeParentDepartmentIds(value, departments, currentId = "") {
+  const ids = normalizeDepartmentIdArray(value, departments, currentId);
+  return ids.filter((id) => !createsDepartmentCycle(currentId, id, departments));
 }
 
 function normalizeManagerId(value) {
@@ -198,14 +207,16 @@ function normalizeDepartmentIdArray(value, departments, currentId = "") {
 }
 
 function createsDepartmentCycle(currentId, parentId, departments) {
-  let cursor = parentId;
+  if (!currentId || !parentId) return false;
+  let cursors = [parentId];
   const visited = new Set();
-  while (cursor) {
+  while (cursors.length) {
+    const cursor = cursors.shift();
     if (cursor === currentId) return true;
-    if (visited.has(cursor)) return true;
+    if (visited.has(cursor)) continue;
     visited.add(cursor);
     const parent = departments.find((department) => department.id === cursor);
-    cursor = parent?.parentId || "";
+    cursors.push(...normalizeDepartmentIdArray(parent?.parentDepartmentIds || parent?.parentId || "[]", departments, parent?.id || ""));
   }
   return false;
 }
