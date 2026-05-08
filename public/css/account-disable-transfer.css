@@ -1,0 +1,73 @@
+.account-disable-transfer-card {
+  max-width: 720px;
+}
+
+.account-disable-warning {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(207, 77, 64, 0.24);
+  border-radius: 8px;
+  background: rgba(207, 77, 64, 0.08);
+}
+
+.account-disable-warning strong {
+  color: var(--red);
+}
+
+.account-disable-warning span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.account-disable-options {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.account-disable-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.account-disable-option input {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  padding: 0;
+}
+
+.account-disable-receiver {
+  margin-top: 12px;
+}
+
+.account-disable-task-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.account-disable-task-list article {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.account-disable-task-list span,
+.account-disable-task-list p {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
