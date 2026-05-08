@@ -10,6 +10,7 @@ function render() {
   if (view === "archived") renderArchivedPage();
   if (view === "maintenance") renderMaintenancePage();
   if (typeof mountAdminTaskCreateEntry === "function") mountAdminTaskCreateEntry(view);
+  if (typeof mountAccountBulkActions === "function") mountAccountBulkActions(view);
   if (typeof renderAdminTaskCreateModal === "function") {
     const adminCreateModal = renderAdminTaskCreateModal();
     if (adminCreateModal) {
