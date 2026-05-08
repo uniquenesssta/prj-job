@@ -1,3 +1,34 @@
+function mountAccountDisableTransfer(view) {
+  if (view !== "account" || !userHasPermission("users.manage")) return;
+  interceptAccountDisableClicks();
+  const modal = renderAccountDisableTransferModal();
+  if (!modal) return;
+  workspace.insertAdjacentHTML("beforeend", modal);
+  bindAccountDisableTransferModal();
+}
+
+function interceptAccountDisableClicks() {
+  const list = document.querySelector(".account-list");
+  if (!list || list.dataset.disableTransferIntercepted === "1") return;
+  list.dataset.disableTransferIntercepted = "1";
+  list.addEventListener(
+    "click",
+    (event) => {
+      const button = event.target.closest('button[data-account-action="toggle"]');
+      if (!button) return;
+      const user = state.users.find((item) => item.id === button.dataset.userId);
+      if (!user || user.disabledAt) return;
+      if (!["designer", "service"].includes(user.role)) return;
+      if (!accountDisableTransferActiveTasks(user).length) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      openAccountDisableTransferModal(user);
+    },
+    true
+  );
+}
+
 function accountDisableTransferActiveTasks(user) {
   if (!user) return [];
   const activeStatuses = new Set(["todo", "doing", "review", "blocked"]);
