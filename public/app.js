@@ -23,11 +23,16 @@ async function loadDepartmentOrganizationAssets() {
   await loadOptionalAsset("script", { src: "js/components/department-organization.js" });
 }
 
+async function loadAccountRolePolicyAssets() {
+  await loadOptionalAsset("script", { src: "js/components/account-role-policy.js" });
+}
+
 async function boot() {
   bindStaticEvents();
   try {
     await loadAccountDisableTransferAssets();
     await loadDepartmentOrganizationAssets();
+    await loadAccountRolePolicyAssets();
     const me = await api("/api/me");
     state.user = me.user;
     await loadData();
