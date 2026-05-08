@@ -85,6 +85,7 @@ function createSchema(db) {
       managerId TEXT NOT NULL DEFAULT '',
       allowViewOwnDepartmentTasks INTEGER NOT NULL DEFAULT 0,
       allowViewChildDepartmentTasks INTEGER NOT NULL DEFAULT 0,
+      childDepartmentScope TEXT NOT NULL DEFAULT '[]',
       disabledAt TEXT NOT NULL DEFAULT '',
       deletedAt TEXT NOT NULL DEFAULT '',
       createdAt TEXT NOT NULL,
@@ -254,6 +255,7 @@ function migrateDepartmentFields(db) {
   if (!columns.includes("managerId")) db.exec("ALTER TABLE departments ADD COLUMN managerId TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("allowViewOwnDepartmentTasks")) db.exec("ALTER TABLE departments ADD COLUMN allowViewOwnDepartmentTasks INTEGER NOT NULL DEFAULT 0");
   if (!columns.includes("allowViewChildDepartmentTasks")) db.exec("ALTER TABLE departments ADD COLUMN allowViewChildDepartmentTasks INTEGER NOT NULL DEFAULT 0");
+  if (!columns.includes("childDepartmentScope")) db.exec("ALTER TABLE departments ADD COLUMN childDepartmentScope TEXT NOT NULL DEFAULT '[]'");
   if (!columns.includes("disabledAt")) db.exec("ALTER TABLE departments ADD COLUMN disabledAt TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("deletedAt")) db.exec("ALTER TABLE departments ADD COLUMN deletedAt TEXT NOT NULL DEFAULT ''");
 }
