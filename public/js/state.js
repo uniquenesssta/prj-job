@@ -58,6 +58,7 @@ const roleLabels = {
   owner: "管理员",
   designer: "设计师",
   service: "客服",
+  custom: "自定义",
 };
 
 const quickFilterLabels = {
