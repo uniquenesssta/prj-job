@@ -9,6 +9,14 @@ function render() {
   if (view === "service") renderServicePage();
   if (view === "archived") renderArchivedPage();
   if (view === "maintenance") renderMaintenancePage();
+  if (typeof mountAdminTaskCreateEntry === "function") mountAdminTaskCreateEntry(view);
+  if (typeof renderAdminTaskCreateModal === "function") {
+    const adminCreateModal = renderAdminTaskCreateModal();
+    if (adminCreateModal) {
+      workspace.insertAdjacentHTML("beforeend", adminCreateModal);
+      bindAdminTaskCreateModal();
+    }
+  }
   if (typeof renderPeerViewModal === "function") {
     workspace.insertAdjacentHTML("beforeend", renderPeerViewModal());
     bindPeerViewEvents();
