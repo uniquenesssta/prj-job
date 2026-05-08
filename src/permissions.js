@@ -1,32 +1,11 @@
 const { listDepartments } = require("./repositories/departments-repo");
+const {
+  ROLE_PERMISSION_CODES,
+  statusTransitionPermissionCode,
+  taskFieldPermissionCode,
+} = require("./permission-definitions");
 
-const ROLE_PERMISSIONS = {
-  owner: [
-    "users.manage",
-    "departments.manage",
-    "permissions.manage",
-    "tasks.read_all",
-    "tasks.create_public",
-    "tasks.create_private",
-    "tasks.edit_brief",
-    "tasks.update_status",
-    "tasks.delete",
-    "files.upload",
-    "files.download",
-    "files.delete_own",
-    "files.delete_any",
-    "comments.write",
-    "notes.write",
-    "archives.manage",
-    "system.maintain",
-    "operation_logs.view",
-    "operation_logs.export",
-    "views.other_designers",
-    "views.other_services",
-  ],
-  service: ["tasks.create_public", "tasks.edit_brief", "files.upload", "files.download", "comments.write", "notes.write"],
-  designer: ["tasks.create_private", "tasks.update_status", "files.upload", "files.download", "comments.write", "notes.write"],
-};
+const ROLE_PERMISSIONS = ROLE_PERMISSION_CODES;
 
 function isOwner(user) {
   return user?.role === "owner";
@@ -64,9 +43,48 @@ function canEditTaskBrief(user, task) {
   return hasPermission(user, "tasks.edit_brief") && canOperateTask(user, task);
 }
 
+function canEditTaskField(user, task, field) {
+  if (!user || !task || !field) return false;
+  if (task.visibility === "private" && task.creatorId === user.id && task.assigneeId === user.id) return true;
+  const permissionCode = taskFieldPermissionCode(field);
+  return Boolean(permissionCode) && hasPermission(user, permissionCode) && canOperateTask(user, task);
+}
+
+function editableTaskFields(user, task) {
+  const fields = [
+    "title",
+    "description",
+    "wechat",
+    "orderNo",
+    "taobaoId",
+    "assigneeId",
+    "dueDate",
+    "priority",
+    "taskType",
+    "sizeSpec",
+    "deliverFormat",
+    "customerRequirement",
+    "remark",
+  ];
+  return fields.filter((field) => canEditTaskField(user, task, field));
+}
+
 function canUpdateTaskStatus(user, task) {
   if (!user || !task) return false;
   return hasPermission(user, "tasks.update_status") && canOperateTask(user, task);
+}
+
+function canChangeTaskStatus(user, task, nextStatus) {
+  if (!user || !task || !nextStatus) return false;
+  if (task.status === nextStatus) return canUpdateTaskStatus(user, task);
+  const permissionCode = statusTransitionPermissionCode(task.status, nextStatus);
+  return Boolean(permissionCode) && hasPermission(user, permissionCode) && canOperateTask(user, task);
+}
+
+function allowedTaskStatuses(user, task) {
+  const statuses = ["todo", "doing", "review", "done", "blocked"];
+  if (!user || !task) return [];
+  return statuses.filter((status) => status === task.status || canChangeTaskStatus(user, task, status));
 }
 
 function canUploadToTask(user, task) {
@@ -186,8 +204,10 @@ function safeListDepartments() {
 }
 
 module.exports = {
+  allowedTaskStatuses,
   canAccessTask,
   canArchiveTask,
+  canChangeTaskStatus,
   canCommentTask,
   canCreatePersonalTask,
   canCreatePublicTask,
@@ -195,6 +215,7 @@ module.exports = {
   canDeleteUploadedFile,
   canDownloadTaskFile,
   canEditTaskBrief,
+  canEditTaskField,
   canManageDepartments,
   canManagePermissions,
   canManageUsers,
@@ -209,8 +230,10 @@ module.exports = {
   canUploadToTask,
   canWritePersonalNote,
   canWritePersonalRemark,
+  editableTaskFields,
   hasAnyPermission,
   hasPermission,
+  isOwner,
   parsePermissionObject,
   resolveUserPermissionCodes,
   rolePermissionCodes,
