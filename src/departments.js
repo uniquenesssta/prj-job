@@ -92,7 +92,7 @@ async function handleUpdateDepartment(req, res, departmentId) {
 }
 
 function normalizeRole(value) {
-  return ["owner", "service", "designer"].includes(value) ? value : "designer";
+  return ["owner", "service", "designer", "custom"].includes(value) ? value : "designer";
 }
 
 function normalizePermissionPreset(value) {
