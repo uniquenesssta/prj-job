@@ -8,9 +8,9 @@ function createDepartment(department, db = getDatabase()) {
   db.prepare(`
     INSERT INTO departments (
       id, name, description, defaultRole, customRoleName, permissionPreset,
-      parentId, managerId, allowViewOwnDepartmentTasks, allowViewChildDepartmentTasks,
+      parentId, managerId, allowViewOwnDepartmentTasks, allowViewChildDepartmentTasks, childDepartmentScope,
       disabledAt, deletedAt, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     department.id,
     department.name,
@@ -22,6 +22,7 @@ function createDepartment(department, db = getDatabase()) {
     department.managerId || "",
     department.allowViewOwnDepartmentTasks ? 1 : 0,
     department.allowViewChildDepartmentTasks ? 1 : 0,
+    department.childDepartmentScope || "[]",
     department.disabledAt || "",
     department.deletedAt || "",
     department.createdAt,
@@ -41,6 +42,7 @@ function updateDepartment(department, db = getDatabase()) {
         managerId = ?,
         allowViewOwnDepartmentTasks = ?,
         allowViewChildDepartmentTasks = ?,
+        childDepartmentScope = ?,
         disabledAt = ?,
         updatedAt = ?
     WHERE id = ?
@@ -54,6 +56,7 @@ function updateDepartment(department, db = getDatabase()) {
     department.managerId || "",
     department.allowViewOwnDepartmentTasks ? 1 : 0,
     department.allowViewChildDepartmentTasks ? 1 : 0,
+    department.childDepartmentScope || "[]",
     department.disabledAt || "",
     department.updatedAt,
     department.id
