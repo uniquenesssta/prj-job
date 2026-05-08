@@ -11,10 +11,11 @@ const {
 const { requireUser } = require("./auth");
 const {
   canAccessTask,
+  canChangeTaskStatus,
   canCreatePersonalTask,
   canCreatePublicTask,
   canDeleteTask,
-  canEditTaskBrief,
+  canEditTaskField,
   canRestoreTask,
   canUpdateTaskStatus,
   canViewOtherDesigners,
@@ -22,6 +23,22 @@ const {
   hasPermission,
 } = require("./permissions");
 const { insertOperationLog, markArchiveRecordRestored } = require("./repositories/system-repo");
+
+const TASK_EDIT_FIELDS = [
+  "title",
+  "description",
+  "assigneeId",
+  "dueDate",
+  "priority",
+  "wechat",
+  "orderNo",
+  "taobaoId",
+  "taskType",
+  "sizeSpec",
+  "deliverFormat",
+  "customerRequirement",
+  "remark",
+];
 
 function handleGetTasks(req, res) {
   const user = requireUser(req, res);
@@ -132,29 +149,24 @@ async function handleUpdateTask(req, res, taskId) {
     sendError(res, 403, "无权修改该任务");
     return;
   }
-  const briefFields = [
-    "title",
-    "description",
-    "assigneeId",
-    "dueDate",
-    "priority",
-    "wechat",
-    "orderNo",
-    "taobaoId",
-    "taskType",
-    "sizeSpec",
-    "deliverFormat",
-    "customerRequirement",
-    "remark",
-  ];
-  if (!canEditTaskBrief(user, task) && briefFields.some((field) => Object.hasOwn(body, field))) {
-    sendError(res, 403, "当前账号只能更新进度和状态");
+
+  const submittedEditFields = TASK_EDIT_FIELDS.filter((field) => Object.hasOwn(body, field));
+  const forbiddenField = submittedEditFields.find((field) => !canEditTaskField(user, task, field));
+  if (forbiddenField) {
+    sendError(res, 403, `当前账号无权修改字段：${forbiddenField}`);
     return;
   }
-  if (Object.hasOwn(body, "status") && !canUpdateTaskStatus(user, task)) {
-    sendError(res, 403, "当前账号无权更新任务状态");
-    return;
+
+  if (Object.hasOwn(body, "status")) {
+    const nextStatus = String(body.status || "");
+    if (!canUpdateTaskStatus(user, task) || !canChangeTaskStatus(user, task, nextStatus)) {
+      sendError(res, 403, "当前账号无权执行该状态流转");
+      return;
+    }
   }
+
+  const before = pickTaskSnapshot(task, [...submittedEditFields, Object.hasOwn(body, "status") ? "status" : ""].filter(Boolean));
+
   if (body.title !== undefined) task.title = String(body.title).trim();
   if (body.description !== undefined) task.description = String(body.description).trim();
   if (body.wechat !== undefined) task.wechat = String(body.wechat).trim();
@@ -179,6 +191,7 @@ async function handleUpdateTask(req, res, taskId) {
     task.progress = progressForStatus(body.status);
   }
   task.updatedAt = new Date().toISOString();
+  const after = pickTaskSnapshot(task, Object.keys(before));
   writeDb(db);
   insertOperationLog({
     userId: user.id,
@@ -186,7 +199,7 @@ async function handleUpdateTask(req, res, taskId) {
     action: Object.hasOwn(body, "status") ? "update_task_status" : "update_task",
     targetType: "task",
     targetId: task.id,
-    detail: JSON.stringify(Object.keys(body)),
+    detail: JSON.stringify({ fields: Object.keys(before), before, after }),
     createdAt: task.updatedAt,
   });
   broadcast("tasks-changed", { taskId: task.id });
@@ -254,6 +267,13 @@ async function handleRestoreTask(req, res, taskId) {
   });
   broadcast("tasks-changed", { taskId: task.id });
   sendJson(res, 200, { task: enrichTask(db, task) });
+}
+
+function pickTaskSnapshot(task, fields) {
+  return [...new Set(fields)].reduce((result, field) => {
+    result[field] = task[field];
+    return result;
+  }, {});
 }
 
 function progressForStatus(status) {
