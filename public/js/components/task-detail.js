@@ -73,8 +73,9 @@ function renderArchiveControls(task) {
   return deleteButton ? `<div class="archive-actions">${deleteButton}</div>` : "";
 }
 
-function statusOptions(currentStatus) {
-  return Object.keys(statusLabels).map((status) => `<option value="${status}" ${status === currentStatus ? "selected" : ""}>${statusLabels[status]}</option>`).join("");
+function statusOptions(currentStatus, allowedStatuses = null) {
+  const statuses = Array.isArray(allowedStatuses) && allowedStatuses.length ? allowedStatuses : Object.keys(statusLabels);
+  return statuses.map((status) => `<option value="${status}" ${status === currentStatus ? "selected" : ""}>${statusLabels[status]}</option>`).join("");
 }
 
 function taskTypeOptions(currentType) {
@@ -89,76 +90,58 @@ function deliverFormatOptions(currentFormat) {
 
 function renderInlineInfo(task) {
   const editable = canEditBrief(task);
-  const statusEditable = canUpdateTaskStatus(task);
+  const allowedStatuses = allowedStatusOptions(task);
+  const statusEditable = allowedStatuses.some((status) => status !== task.status);
   const designers = task.visibility === "private" && state.user.role !== "owner"
     ? state.users.filter((user) => user.id === state.user.id)
     : state.users.filter((user) => user.role === "designer");
   const readonly = (label, value) => `<div class="info-tile"><span>${label}</span><strong>${escapeHtml(value || "未填写")}</strong></div>`;
+  const inputTile = (field, label, value) => canEditTaskField(task, field)
+    ? `<label class="info-tile"><span>${label}</span><input name="${field}" value="${escapeAttr(value || "")}" /></label>`
+    : readonly(label, value);
+  const selectTile = (field, label, value, optionsHtml) => canEditTaskField(task, field)
+    ? `<label class="info-tile"><span>${label}</span><select name="${field}">${optionsHtml}</select></label>`
+    : readonly(label, value);
+  const textareaBlock = (field, label, value, className, rows = 3) => canEditTaskField(task, field)
+    ? `<label class="${className}"><span>${label}</span><textarea name="${field}" rows="${rows}">${escapeHtml(value || "")}</textarea></label>`
+    : `<div class="requirement-tile"><span>${label}</span><p>${escapeHtml(value || "未填写")}</p></div>`;
+  const statusTile = statusEditable
+    ? `<label class="info-tile status-cell"><span>状态</span><select name="status">${statusOptions(task.status, allowedStatuses)}</select></label>`
+    : readonly("状态", statusLabels[task.status]);
 
-  if (!editable) {
-    const statusTile = statusEditable
-      ? `<label class="info-tile status-cell"><span>状态</span><select name="status">${statusOptions(task.status)}</select></label>`
-      : readonly("状态", statusLabels[task.status]);
-    const content = `
-      <div class="summary-strip">
-        ${readonly("微信号", task.wechat)}
-        ${readonly("订单号", task.orderNo)}
-        ${readonly("淘宝ID", task.taobaoId)}
-      </div>
-      <div class="work-strip">
-        ${readonly("设计师", task.assigneeName)}
-        ${readonly("客服", task.creatorName)}
-        ${statusTile}
-      </div>
-      <div class="design-strip">
-        ${readonly("任务类型", task.taskType)}
-        ${readonly("尺寸规格", task.sizeSpec)}
-        ${readonly("交付格式", task.deliverFormat)}
-      </div>
-      <div class="requirement-tile">
-        <span>客户原始需求</span>
-        <p>${escapeHtml(task.customerRequirement || "未填写")}</p>
-      </div>
-      ${statusEditable ? '<button type="submit">更新状态</button>' : ""}
-    `;
-    return statusEditable ? `<form class="inline-info-form" id="statusForm">${content}</form>` : `<div class="inline-info-form">${content}</div>`;
-  }
-
-  return `
-    <form class="inline-info-form" id="briefForm">
-      <div class="summary-strip">
-        <label class="info-tile"><span>微信号</span><input name="wechat" value="${escapeAttr(task.wechat || "")}" /></label>
-        <label class="info-tile"><span>订单号</span><input name="orderNo" value="${escapeAttr(task.orderNo || "")}" /></label>
-        <label class="info-tile"><span>淘宝ID</span><input name="taobaoId" value="${escapeAttr(task.taobaoId || "")}" /></label>
-      </div>
-      <div class="work-strip">
+  const content = `
+    <div class="summary-strip">
+      ${inputTile("wechat", "微信号", task.wechat)}
+      ${inputTile("orderNo", "订单号", task.orderNo)}
+      ${inputTile("taobaoId", "淘宝ID", task.taobaoId)}
+    </div>
+    <div class="work-strip">
+      ${canEditTaskField(task, "assigneeId") ? `
         <label class="info-tile">
           <span>设计师</span>
           <select name="assigneeId">${designers.map((user) => `<option value="${user.id}" ${user.id === task.assigneeId ? "selected" : ""}>${escapeHtml(user.name)}</option>`).join("")}</select>
         </label>
-        <label class="info-tile"><span>状态</span><select name="status">${statusOptions(task.status)}</select></label>
-        <label class="info-tile"><span>截止日期</span><input name="dueDate" type="date" value="${task.dueDate || ""}" /></label>
-      </div>
-      <div class="design-strip">
-        <label class="info-tile"><span>任务类型</span><select name="taskType">${taskTypeOptions(task.taskType)}</select></label>
-        <label class="info-tile"><span>尺寸规格</span><input name="sizeSpec" value="${escapeAttr(task.sizeSpec || "")}" /></label>
-        <label class="info-tile"><span>交付格式</span><select name="deliverFormat">${deliverFormatOptions(task.deliverFormat)}</select></label>
-      </div>
-      <div class="inline-extra">
+      ` : readonly("设计师", task.assigneeName)}
+      ${statusTile}
+      ${canEditTaskField(task, "dueDate") ? `<label class="info-tile"><span>截止日期</span><input name="dueDate" type="date" value="${task.dueDate || ""}" /></label>` : readonly("截止日期", task.dueDate)}
+    </div>
+    <div class="design-strip">
+      ${selectTile("taskType", "任务类型", task.taskType, taskTypeOptions(task.taskType))}
+      ${inputTile("sizeSpec", "尺寸规格", task.sizeSpec)}
+      ${selectTile("deliverFormat", "交付格式", task.deliverFormat, deliverFormatOptions(task.deliverFormat))}
+    </div>
+    <div class="inline-extra">
+      ${canEditTaskField(task, "priority") ? `
         <label>
           <span>优先级</span>
           <select name="priority">${Object.keys(priorityLabels).map((priority) => `<option value="${priority}" ${priority === task.priority ? "selected" : ""}>${priorityLabels[priority]}</option>`).join("")}</select>
         </label>
-        <label>
-          <span>任务说明</span>
-          <textarea name="description" rows="2">${escapeHtml(task.description || "")}</textarea>
-        </label>
-      </div>
-      <label class="requirement-editor">
-        <span>客户原始需求</span>
-        <textarea name="customerRequirement" rows="3">${escapeHtml(task.customerRequirement || "")}</textarea>
-      </label>
-      <button type="submit">保存修改</button>
-    </form>
+      ` : readonly("优先级", priorityLabels[task.priority])}
+      ${textareaBlock("description", "任务说明", task.description, "requirement-editor", 2)}
+    </div>
+    ${textareaBlock("customerRequirement", "客户原始需求", task.customerRequirement, "requirement-editor", 3)}
+    ${editable || statusEditable ? '<button type="submit">保存修改</button>' : ""}
   `;
+
+  return editable || statusEditable ? `<form class="inline-info-form" id="briefForm">${content}</form>` : `<div class="inline-info-form">${content}</div>`;
 }
