@@ -1,4 +1,5 @@
 const { listDepartments } = require("./repositories/departments-repo");
+const { listUsers } = require("./repositories/users-repo");
 const {
   ROLE_PERMISSION_CODES,
   statusTransitionPermissionCode,
@@ -18,6 +19,7 @@ function canAccessTask(user, task) {
     return task.creatorId === user.id && task.assigneeId === user.id;
   }
   if (task.creatorId === user.id || task.assigneeId === user.id) return true;
+  if (canAccessDepartmentTask(user, task)) return true;
   if (hasPermission(user, "views.other_designers") && task.assigneeId) return true;
   if (hasPermission(user, "views.other_services") && task.creatorId) return true;
   return false;
@@ -158,6 +160,47 @@ function canViewOtherServices(user) {
   return hasPermission(user, "views.other_services");
 }
 
+function canAccessDepartmentTask(user, task) {
+  if (!user?.departmentId || !task || task.visibility === "private") return false;
+  const departments = safeListDepartments();
+  const ownDepartment = departments.find((department) => department.id === user.departmentId && !department.deletedAt && !department.disabledAt);
+  if (!ownDepartment) return false;
+  const isDepartmentManager = ownDepartment.managerId === user.id;
+  if (!isDepartmentManager && !departmentFlag(ownDepartment.allowViewOwnDepartmentTasks) && !departmentFlag(ownDepartment.allowViewChildDepartmentTasks)) return false;
+
+  const users = safeListUsers();
+  const assignee = users.find((item) => item.id === task.assigneeId && !item.deletedAt);
+  const creator = users.find((item) => item.id === task.creatorId && !item.deletedAt);
+  const taskDepartmentIds = new Set([assignee?.departmentId, creator?.departmentId].filter(Boolean));
+  if (!taskDepartmentIds.size) return false;
+
+  if (departmentFlag(ownDepartment.allowViewOwnDepartmentTasks) || isDepartmentManager) {
+    if (taskDepartmentIds.has(ownDepartment.id)) return true;
+  }
+  if (departmentFlag(ownDepartment.allowViewChildDepartmentTasks)) {
+    const childIds = childDepartmentIds(ownDepartment.id, departments);
+    return [...taskDepartmentIds].some((departmentId) => childIds.has(departmentId));
+  }
+  return false;
+}
+
+function childDepartmentIds(parentId, departments) {
+  const result = new Set();
+  const visit = (id) => {
+    departments.filter((department) => department.parentId === id && !department.deletedAt && !department.disabledAt).forEach((department) => {
+      if (result.has(department.id)) return;
+      result.add(department.id);
+      visit(department.id);
+    });
+  };
+  visit(parentId);
+  return result;
+}
+
+function departmentFlag(value) {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
 function parsePermissionObject(value) {
   try {
     const parsed = typeof value === "string" ? JSON.parse(value || "{}") : value || {};
@@ -198,6 +241,14 @@ function hasAnyPermission(user, codes) {
 function safeListDepartments() {
   try {
     return listDepartments();
+  } catch {
+    return [];
+  }
+}
+
+function safeListUsers() {
+  try {
+    return listUsers();
   } catch {
     return [];
   }
