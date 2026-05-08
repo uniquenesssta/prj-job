@@ -34,7 +34,7 @@ function enhanceDepartmentOrganizationForm() {
         <section class="department-child-scope">
           <strong>直属下级部门</strong>
           <p>在编辑上级部门时多选它下面的直属下级部门；保存后当前部门会成为这些部门的其中一个上级。</p>
-          <div>${directChildOptions || '<span class="muted-text">暂无可分配部门</span>'}</div>
+          <div>${directChildOptions || '<span class="muted-text">新增部门保存后可分配直属下级</span>'}</div>
         </section>
         <label class="department-org-check">
           <input type="checkbox" name="allowViewOwnDepartmentTasks" value="true" ${normalizeDepartmentFlag(editing?.allowViewOwnDepartmentTasks) ? "checked" : ""} />
@@ -55,10 +55,10 @@ function enhanceDepartmentOrganizationForm() {
 }
 
 function renderParentDepartmentOptions(editing) {
-  if (!editing?.id) return "";
+  const currentId = editing?.id || "";
   const selected = new Set(departmentParents(editing));
   return state.departments
-    .filter((department) => department.id !== editing.id && !department.deletedAt && !isDepartmentDescendant(editing.id, department.id))
+    .filter((department) => department.id !== currentId && !department.deletedAt && (!currentId || !isDepartmentDescendant(currentId, department.id)))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), "zh-Hans-CN"))
     .map((department) => `
       <label class="department-org-check child-scope-check">
