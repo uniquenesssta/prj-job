@@ -81,6 +81,10 @@ function createSchema(db) {
       defaultRole TEXT NOT NULL DEFAULT 'designer',
       customRoleName TEXT NOT NULL DEFAULT '',
       permissionPreset TEXT NOT NULL DEFAULT '{}',
+      parentId TEXT NOT NULL DEFAULT '',
+      managerId TEXT NOT NULL DEFAULT '',
+      allowViewOwnDepartmentTasks INTEGER NOT NULL DEFAULT 0,
+      allowViewChildDepartmentTasks INTEGER NOT NULL DEFAULT 0,
       disabledAt TEXT NOT NULL DEFAULT '',
       deletedAt TEXT NOT NULL DEFAULT '',
       createdAt TEXT NOT NULL,
@@ -246,6 +250,10 @@ function migrateDepartmentFields(db) {
   if (!columns.includes("defaultRole")) db.exec("ALTER TABLE departments ADD COLUMN defaultRole TEXT NOT NULL DEFAULT 'designer'");
   if (!columns.includes("customRoleName")) db.exec("ALTER TABLE departments ADD COLUMN customRoleName TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("permissionPreset")) db.exec("ALTER TABLE departments ADD COLUMN permissionPreset TEXT NOT NULL DEFAULT '{}'");
+  if (!columns.includes("parentId")) db.exec("ALTER TABLE departments ADD COLUMN parentId TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("managerId")) db.exec("ALTER TABLE departments ADD COLUMN managerId TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("allowViewOwnDepartmentTasks")) db.exec("ALTER TABLE departments ADD COLUMN allowViewOwnDepartmentTasks INTEGER NOT NULL DEFAULT 0");
+  if (!columns.includes("allowViewChildDepartmentTasks")) db.exec("ALTER TABLE departments ADD COLUMN allowViewChildDepartmentTasks INTEGER NOT NULL DEFAULT 0");
   if (!columns.includes("disabledAt")) db.exec("ALTER TABLE departments ADD COLUMN disabledAt TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("deletedAt")) db.exec("ALTER TABLE departments ADD COLUMN deletedAt TEXT NOT NULL DEFAULT ''");
 }
@@ -313,6 +321,8 @@ function migratePersonalNotesSchema(db) {
 function createIndexes(db) {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_users_department ON users(departmentId);
+    CREATE INDEX IF NOT EXISTS idx_departments_parent ON departments(parentId);
+    CREATE INDEX IF NOT EXISTS idx_departments_manager ON departments(managerId);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assigneeId);
     CREATE INDEX IF NOT EXISTS idx_tasks_creator ON tasks(creatorId);
@@ -606,7 +616,7 @@ function runInTransaction(callback, db = getDatabase()) {
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
-  }
+}
 }
 
 module.exports = {
