@@ -14,6 +14,7 @@ const state = {
   events: null,
   briefEditOpen: false,
   personalTaskModalOpen: false,
+  adminTaskCreateModalOpen: false,
   taskDetailModalOpen: false,
   personalNotesByTask: {},
   pendingRemarkImages: [],
