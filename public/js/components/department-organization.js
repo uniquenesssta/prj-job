@@ -13,6 +13,7 @@ function enhanceDepartmentOrganizationForm() {
     .map((user) => `<option value="${user.id}" ${editing?.managerId === user.id ? "selected" : ""}>${escapeHtml(user.name)} · ${roleLabels[user.role] || user.role}</option>`)
     .join("");
   const parentOptions = departmentTreeOptions(editing?.parentId || "", editing?.id || "");
+  const childScopeOptions = renderChildDepartmentScopeOptions(editing);
   formGrid.insertAdjacentHTML(
     "beforeend",
     `
@@ -39,9 +40,43 @@ function enhanceDepartmentOrganizationForm() {
           <input type="checkbox" name="allowViewChildDepartmentTasks" value="true" ${normalizeDepartmentFlag(editing?.allowViewChildDepartmentTasks) ? "checked" : ""} />
           <span>允许查看下级部门任务</span>
         </label>
+        <section class="department-child-scope">
+          <strong>可查看的下级部门</strong>
+          <p>不勾选时默认查看全部下级部门；勾选后只查看选中的下级部门及其子部门。</p>
+          <div>${childScopeOptions || '<span class="muted-text">当前没有下级部门可选</span>'}</div>
+        </section>
       </div>
     `
   );
+}
+
+function renderChildDepartmentScopeOptions(editing) {
+  if (!editing?.id) return "";
+  const selected = new Set(parseJsonArray(editing.childDepartmentScope));
+  return flattenDepartmentTree(buildDepartmentTree())
+    .filter((item) => item.department.id !== editing.id && isDepartmentDescendant(editing.id, item.department.id))
+    .map((item) => {
+      const prefix = "　".repeat(Math.max(0, item.depth - 1)) + (item.depth ? "└ " : "");
+      return `
+        <label class="department-org-check child-scope-check">
+          <input type="checkbox" name="childDepartmentScope" value="${item.department.id}" ${selected.has(item.department.id) ? "checked" : ""} />
+          <span>${prefix}${escapeHtml(item.department.name)}</span>
+        </label>
+      `;
+    })
+    .join("");
+}
+
+function isDepartmentDescendant(parentId, departmentId) {
+  let cursor = state.departments.find((dept) => dept.id === departmentId)?.parentId || "";
+  const visited = new Set();
+  while (cursor) {
+    if (cursor === parentId) return true;
+    if (visited.has(cursor)) return false;
+    visited.add(cursor);
+    cursor = state.departments.find((dept) => dept.id === cursor)?.parentId || "";
+  }
+  return false;
 }
 
 function enhanceDepartmentPreviewTree() {
@@ -90,13 +125,14 @@ function renderDepartmentTree(nodes) {
 function renderDepartmentTreeNode(node) {
   const dept = node.department;
   const manager = state.users.find((user) => user.id === dept.managerId);
+  const scopedCount = parseJsonArray(dept.childDepartmentScope).length;
   return `
     <article class="department-org-node ${dept.disabledAt ? "disabled" : ""}" style="--dept-depth:${node.depth}">
       <div>
         <strong>${escapeHtml(dept.name)}</strong>
         <span>${escapeHtml(dept.description || "暂无说明")}</span>
         <small>默认角色：${departmentRoleLabel(dept)} · 主管：${manager ? escapeHtml(manager.name) : "未指定"}</small>
-        <small>${normalizeDepartmentFlag(dept.allowViewOwnDepartmentTasks) ? "可看本部门" : "不可看本部门"} · ${normalizeDepartmentFlag(dept.allowViewChildDepartmentTasks) ? "可看下级" : "不可看下级"}</small>
+        <small>${normalizeDepartmentFlag(dept.allowViewOwnDepartmentTasks) ? "可看本部门" : "不可看本部门"} · ${normalizeDepartmentFlag(dept.allowViewChildDepartmentTasks) ? `可看下级${scopedCount ? `（已选 ${scopedCount} 个范围）` : "（全部）"}` : "不可看下级"}</small>
       </div>
       <div class="account-actions">
         <button type="button" data-department-action="edit" data-department-id="${dept.id}">编辑</button>
@@ -109,6 +145,15 @@ function renderDepartmentTreeNode(node) {
 
 function normalizeDepartmentFlag(value) {
   return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value || "[]") : value;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
 }
 
 async function handleDepartmentSubmit(event) {
@@ -125,6 +170,7 @@ async function handleDepartmentSubmit(event) {
     managerId: form.get("managerId"),
     allowViewOwnDepartmentTasks: form.has("allowViewOwnDepartmentTasks") ? "true" : "false",
     allowViewChildDepartmentTasks: form.has("allowViewChildDepartmentTasks") ? "true" : "false",
+    childDepartmentScope: JSON.stringify(form.getAll("childDepartmentScope")),
     permissionPreset: JSON.stringify(normalizePermissionFormData(form)),
   };
   const message = document.querySelector("#departmentMessage");
