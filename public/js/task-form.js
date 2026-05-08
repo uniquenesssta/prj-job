@@ -97,7 +97,7 @@ function renderPersonalTaskModal() {
   `;
 }
 
-function bindTaskForm() {
+function bindTaskForm(options = {}) {
   const form = document.querySelector("#taskForm");
   if (!form) return;
   form.addEventListener("submit", async (event) => {
@@ -109,6 +109,7 @@ function bindTaskForm() {
       form.reset();
       message.style.color = "#2f9563";
       message.textContent = "任务已创建并派给设计师。";
+      if (typeof options.afterSuccess === "function") options.afterSuccess();
       await loadData();
       render();
     } catch (error) {
