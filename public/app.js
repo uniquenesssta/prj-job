@@ -18,10 +18,16 @@ async function loadAccountDisableTransferAssets() {
   await loadOptionalAsset("script", { src: "js/components/account-disable-transfer-modal.js" });
 }
 
+async function loadDepartmentOrganizationAssets() {
+  await loadOptionalAsset("link", { rel: "stylesheet", href: "css/department-organization.css" });
+  await loadOptionalAsset("script", { src: "js/components/department-organization.js" });
+}
+
 async function boot() {
   bindStaticEvents();
   try {
     await loadAccountDisableTransferAssets();
+    await loadDepartmentOrganizationAssets();
     const me = await api("/api/me");
     state.user = me.user;
     await loadData();
