@@ -13,6 +13,7 @@ function enhanceDepartmentOrganizationForm() {
     .map((user) => `<option value="${user.id}" ${editing?.managerId === user.id ? "selected" : ""}>${escapeHtml(user.name)} · ${roleLabels[user.role] || user.role}</option>`)
     .join("");
   const parentOptions = departmentTreeOptions(editing?.parentId || "", editing?.id || "");
+  const directChildOptions = renderDirectChildDepartmentOptions(editing);
   const childScopeOptions = renderChildDepartmentScopeOptions(editing);
   formGrid.insertAdjacentHTML(
     "beforeend",
@@ -32,6 +33,11 @@ function enhanceDepartmentOrganizationForm() {
             ${managerOptions}
           </select>
         </label>
+        <section class="department-child-scope">
+          <strong>直属下级部门</strong>
+          <p>在编辑上级部门时多选它下面的直属下级部门；保存后被选部门会自动归入当前部门。</p>
+          <div>${directChildOptions || '<span class="muted-text">暂无可分配部门</span>'}</div>
+        </section>
         <label class="department-org-check">
           <input type="checkbox" name="allowViewOwnDepartmentTasks" value="true" ${normalizeDepartmentFlag(editing?.allowViewOwnDepartmentTasks) ? "checked" : ""} />
           <span>允许查看本部门任务</span>
@@ -41,13 +47,26 @@ function enhanceDepartmentOrganizationForm() {
           <span>允许查看下级部门任务</span>
         </label>
         <section class="department-child-scope">
-          <strong>可查看的下级部门</strong>
-          <p>不勾选时默认查看全部下级部门；勾选后只查看选中的下级部门及其子部门。</p>
+          <strong>可查看的下级部门范围</strong>
+          <p>这是权限范围，不是组织归属。不勾选时默认查看全部下级；勾选后只查看选中部门及其子部门。</p>
           <div>${childScopeOptions || '<span class="muted-text">当前没有下级部门可选</span>'}</div>
         </section>
       </div>
     `
   );
+}
+
+function renderDirectChildDepartmentOptions(editing) {
+  if (!editing?.id) return "";
+  const candidates = state.departments
+    .filter((department) => department.id !== editing.id && !department.deletedAt && !isDepartmentDescendant(department.id, editing.id))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), "zh-Hans-CN"));
+  return candidates.map((department) => `
+    <label class="department-org-check child-scope-check">
+      <input type="checkbox" name="directChildDepartmentIds" value="${department.id}" ${department.parentId === editing.id ? "checked" : ""} />
+      <span>${escapeHtml(department.name)}${department.parentId && department.parentId !== editing.id ? `（当前上级：${escapeHtml(departmentNameById(department.parentId))}）` : ""}</span>
+    </label>
+  `).join("");
 }
 
 function renderChildDepartmentScopeOptions(editing) {
@@ -77,6 +96,10 @@ function isDepartmentDescendant(parentId, departmentId) {
     cursor = state.departments.find((dept) => dept.id === cursor)?.parentId || "";
   }
   return false;
+}
+
+function departmentNameById(id) {
+  return state.departments.find((department) => department.id === id)?.name || "未知部门";
 }
 
 function enhanceDepartmentPreviewTree() {
@@ -170,6 +193,7 @@ async function handleDepartmentSubmit(event) {
     managerId: form.get("managerId"),
     allowViewOwnDepartmentTasks: form.has("allowViewOwnDepartmentTasks") ? "true" : "false",
     allowViewChildDepartmentTasks: form.has("allowViewChildDepartmentTasks") ? "true" : "false",
+    directChildDepartmentIds: JSON.stringify(form.getAll("directChildDepartmentIds")),
     childDepartmentScope: JSON.stringify(form.getAll("childDepartmentScope")),
     permissionPreset: JSON.stringify(normalizePermissionFormData(form)),
   };
