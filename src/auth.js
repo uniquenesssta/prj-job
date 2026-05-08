@@ -12,6 +12,7 @@ const {
 } = require("./storage");
 const { canManageUsers, hasAnyPermission, hasPermission } = require("./permissions");
 const { insertOperationLog } = require("./repositories/system-repo");
+const { applyDisableTransfer, validateDisableTransfer } = require("./user-disable-transfer");
 
 const sessions = new Map();
 
@@ -178,6 +179,7 @@ async function handleUpdateUser(req, res, userId) {
   const customPermissions = body.customPermissions !== undefined ? normalizeCustomPermissions(body.customPermissions) : target.customPermissions;
   const disabledRequested = body.disabled !== undefined ? body.disabled === true || body.disabled === "true" : Boolean(target.disabledAt);
   const password = String(body.password || "").trim();
+  const isNewDisable = body.disabled !== undefined && disabledRequested && !target.disabledAt;
 
   if (!username || !name) {
     sendError(res, 400, "姓名和账号不能为空");
@@ -206,6 +208,12 @@ async function handleUpdateUser(req, res, userId) {
     }
   }
 
+  const disableTransfer = isNewDisable ? validateDisableTransfer(db, target, body) : { ok: true };
+  if (!disableTransfer.ok) {
+    sendError(res, 409, disableTransfer.error);
+    return;
+  }
+
   target.username = username;
   target.name = name;
   target.role = role;
@@ -213,6 +221,7 @@ async function handleUpdateUser(req, res, userId) {
   target.customPermissions = customPermissions;
   if (body.disabled !== undefined) target.disabledAt = disabledRequested ? target.disabledAt || new Date().toISOString() : "";
   if (password) target.passwordHash = hashPassword(password);
+  const transferResult = isNewDisable ? applyDisableTransfer(db, target, disableTransfer, target.disabledAt) : null;
   writeDb(db);
   insertOperationLog({
     userId: user.id,
@@ -221,9 +230,13 @@ async function handleUpdateUser(req, res, userId) {
     targetType: "user",
     targetId: target.id,
     targetTitle: target.username,
-    detail: `修改账号 ${target.username}`,
+    detail: JSON.stringify({
+      message: `修改账号 ${target.username}`,
+      disableTransfer: transferResult,
+    }),
   });
   broadcast("users-changed", { userId: target.id });
+  broadcast("tasks-changed", { userId: target.id });
   sendJson(res, 200, { user: publicUser(target) });
 }
 
