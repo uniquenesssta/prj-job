@@ -116,6 +116,9 @@ async function handleUpdateDepartment(req, res, departmentId) {
     return;
   }
   updateDepartment(next);
+  if (body.directChildDepartmentIds !== undefined) {
+    applyDirectChildDepartments(next.id, body.directChildDepartmentIds, departments, now);
+  }
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -131,9 +134,26 @@ async function handleUpdateDepartment(req, res, departmentId) {
       allowViewOwnDepartmentTasks: Boolean(next.allowViewOwnDepartmentTasks),
       allowViewChildDepartmentTasks: Boolean(next.allowViewChildDepartmentTasks),
       childDepartmentScope: next.childDepartmentScope,
+      directChildDepartmentIds: normalizeDepartmentIdArray(body.directChildDepartmentIds, departments, next.id),
     }),
   });
   sendJson(res, 200, { department: next });
+}
+
+function applyDirectChildDepartments(parentId, value, departments, now) {
+  const selectedIds = new Set(normalizeDepartmentIdArray(value, departments, parentId));
+  departments.forEach((department) => {
+    if (department.id === parentId) return;
+    const shouldBeChild = selectedIds.has(department.id);
+    const isDirectChild = department.parentId === parentId;
+    if (!shouldBeChild && !isDirectChild) return;
+    if (shouldBeChild && createsDepartmentCycle(parentId, department.id, departments)) return;
+    updateDepartment({
+      ...department,
+      parentId: shouldBeChild ? parentId : "",
+      updatedAt: now,
+    });
+  });
 }
 
 function normalizeRole(value) {
@@ -160,6 +180,10 @@ function normalizeBoolean(value) {
 }
 
 function normalizeChildDepartmentScope(value, departments, currentId = "") {
+  return JSON.stringify(normalizeDepartmentIdArray(value, departments, currentId));
+}
+
+function normalizeDepartmentIdArray(value, departments, currentId = "") {
   let ids = [];
   if (Array.isArray(value)) ids = value;
   else if (typeof value === "string") {
@@ -170,7 +194,7 @@ function normalizeChildDepartmentScope(value, departments, currentId = "") {
     }
   }
   const allowed = new Set(departments.filter((department) => department.id !== currentId).map((department) => department.id));
-  return JSON.stringify([...new Set(ids.map((id) => String(id).trim()).filter((id) => allowed.has(id)))]);
+  return [...new Set(ids.map((id) => String(id).trim()).filter((id) => allowed.has(id)))];
 }
 
 function createsDepartmentCycle(currentId, parentId, departments) {
