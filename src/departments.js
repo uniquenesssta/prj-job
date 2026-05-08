@@ -49,6 +49,7 @@ async function handleCreateDepartment(req, res) {
     managerId,
     allowViewOwnDepartmentTasks: normalizeBoolean(body.allowViewOwnDepartmentTasks),
     allowViewChildDepartmentTasks: normalizeBoolean(body.allowViewChildDepartmentTasks),
+    childDepartmentScope: normalizeChildDepartmentScope(body.childDepartmentScope, departments),
     disabledAt: body.disabled === true || body.disabled === "true" ? now : "",
     deletedAt: "",
     createdAt: now,
@@ -62,7 +63,7 @@ async function handleCreateDepartment(req, res) {
     targetType: "department",
     targetId: department.id,
     targetTitle: department.name,
-    detail: JSON.stringify({ defaultRole, customRoleName, parentId, managerId }),
+    detail: JSON.stringify({ defaultRole, customRoleName, parentId, managerId, childDepartmentScope: department.childDepartmentScope }),
   });
   sendJson(res, 201, { department });
 }
@@ -102,6 +103,7 @@ async function handleUpdateDepartment(req, res, departmentId) {
     managerId: body.managerId !== undefined ? normalizeManagerId(body.managerId) : current.managerId || "",
     allowViewOwnDepartmentTasks: body.allowViewOwnDepartmentTasks !== undefined ? normalizeBoolean(body.allowViewOwnDepartmentTasks) : Boolean(current.allowViewOwnDepartmentTasks),
     allowViewChildDepartmentTasks: body.allowViewChildDepartmentTasks !== undefined ? normalizeBoolean(body.allowViewChildDepartmentTasks) : Boolean(current.allowViewChildDepartmentTasks),
+    childDepartmentScope: body.childDepartmentScope !== undefined ? normalizeChildDepartmentScope(body.childDepartmentScope, departments, current.id) : current.childDepartmentScope || "[]",
     disabledAt: body.disabled !== undefined ? (body.disabled === true || body.disabled === "true" ? current.disabledAt || now : "") : current.disabledAt,
     updatedAt: now,
   };
@@ -128,6 +130,7 @@ async function handleUpdateDepartment(req, res, departmentId) {
       managerId: next.managerId,
       allowViewOwnDepartmentTasks: Boolean(next.allowViewOwnDepartmentTasks),
       allowViewChildDepartmentTasks: Boolean(next.allowViewChildDepartmentTasks),
+      childDepartmentScope: next.childDepartmentScope,
     }),
   });
   sendJson(res, 200, { department: next });
@@ -154,6 +157,20 @@ function normalizeManagerId(value) {
 
 function normalizeBoolean(value) {
   return value === true || value === "true" || value === "1" || value === 1;
+}
+
+function normalizeChildDepartmentScope(value, departments, currentId = "") {
+  let ids = [];
+  if (Array.isArray(value)) ids = value;
+  else if (typeof value === "string") {
+    try {
+      ids = JSON.parse(value || "[]");
+    } catch {
+      ids = value.split(",");
+    }
+  }
+  const allowed = new Set(departments.filter((department) => department.id !== currentId).map((department) => department.id));
+  return JSON.stringify([...new Set(ids.map((id) => String(id).trim()).filter((id) => allowed.has(id)))]);
 }
 
 function createsDepartmentCycle(currentId, parentId, departments) {
