@@ -1,6 +1,11 @@
 const http = require("http");
 const os = require("os");
-const { enforceCreateAccountPolicy, enforceUpdateAccountPolicy } = require("./account-api-policy");
+const {
+  handlePolicyCreateUser,
+  handlePolicyDeleteUser,
+  handlePolicyUpdateUser,
+  handlePolicyUsers,
+} = require("./account-api-policy");
 const { PORT, REMARK_IMAGE_DIR, UPLOAD_DIR } = require("./config");
 const { sendError } = require("./http-utils");
 const { scheduleDailyOperationLogArchive } = require("./operation-log-archive");
@@ -16,12 +21,13 @@ function getLanAddresses() {
 
 async function routeWithPolicies(req, res) {
   try {
-    if (req.method === "POST" && req.url.split("?")[0] === "/api/users") {
-      if (!(await enforceCreateAccountPolicy(req, res))) return;
-    }
-    const userUpdate = req.url.split("?")[0].match(/^\/api\/users\/([^/]+)$/);
-    if (req.method === "PATCH" && userUpdate) {
-      if (!(await enforceUpdateAccountPolicy(req, res, userUpdate[1]))) return;
+    const pathname = req.url.split("?")[0];
+    if (req.method === "GET" && pathname === "/api/users") return handlePolicyUsers(req, res);
+    if (req.method === "POST" && pathname === "/api/users") return handlePolicyCreateUser(req, res);
+    const userRoute = pathname.match(/^\/api\/users\/([^/]+)$/);
+    if (userRoute) {
+      if (req.method === "PATCH") return handlePolicyUpdateUser(req, res, userRoute[1]);
+      if (req.method === "DELETE") return handlePolicyDeleteUser(req, res, userRoute[1]);
     }
     return route(req, res);
   } catch (error) {

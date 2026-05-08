@@ -22,12 +22,15 @@ async function loadPersonalNotes(taskId) {
 
 async function reloadTasks() {
   const selected = state.selectedTaskId;
+  const modalWasOpen = Boolean(state.taskDetailModalOpen);
   await loadData();
   state.selectedTaskId = selected;
+  state.taskDetailModalOpen = modalWasOpen;
   render();
 }
 
 function connectEvents() {
+  ensureRealtimeCommentStyles();
   if (state.events) state.events.close();
   state.events = new EventSource("/api/events");
   const realtimeEvents = ["tasks-changed", "files-changed", "comments-changed", "users-changed", "departments-changed", "system-changed"];
@@ -54,12 +57,28 @@ function parseRealtimePayload(event) {
 
 function handleRealtimeEvent(eventName, payload = {}) {
   const selected = state.selectedTaskId;
-  const detailOpen = Boolean(state.taskDetailModalOpen || selected);
-  const shouldKeepDetailOpen = detailOpen && selected;
+  const shouldKeepDetailOpen = Boolean(state.taskDetailModalOpen && selected);
   state.realtimeLastEvent = { eventName, payload, receivedAt: new Date().toISOString() };
+
+  if (shouldApplyCommentRealtimeLocally(eventName, payload, selected)) {
+    mergeRealtimeComment(payload.comment);
+    appendRealtimeCommentToOpenList(payload.comment);
+    return;
+  }
+
+  if (shouldIgnoreCommentTaskRefresh(eventName, payload, selected)) return;
+
   queueRealtimeSync(async () => {
     await syncRealtimeData({ eventName, payload, selected, shouldKeepDetailOpen });
   });
+}
+
+function shouldApplyCommentRealtimeLocally(eventName, payload, selected) {
+  return eventName === "comments-changed" && Boolean(selected) && payload?.taskId === selected && Boolean(payload.comment?.id);
+}
+
+function shouldIgnoreCommentTaskRefresh(eventName, payload, selected) {
+  return eventName === "tasks-changed" && payload?.reason === "comment-created" && Boolean(selected) && payload.taskId === selected;
 }
 
 function queueRealtimeSync(syncer) {
@@ -88,13 +107,41 @@ async function syncRealtimeData({ eventName, payload, selected, shouldKeepDetail
   await loadData();
   if (selected && state.tasks.some((task) => task.id === selected)) {
     state.selectedTaskId = selected;
-    if (shouldKeepDetailOpen) state.taskDetailModalOpen = true;
+    state.taskDetailModalOpen = shouldKeepDetailOpen;
   } else if (state.selectedTaskId === selected) {
     state.selectedTaskId = null;
     state.taskDetailModalOpen = false;
   }
   render();
   restoreRealtimeScrollSnapshot(scrollSnapshot, eventName, payload);
+}
+
+function mergeRealtimeComment(comment) {
+  if (!comment?.taskId || !comment.id) return false;
+  const task = state.tasks.find((item) => item.id === comment.taskId);
+  if (!task) return false;
+  if (!Array.isArray(task.comments)) task.comments = [];
+  if (task.comments.some((item) => item.id === comment.id)) return false;
+  task.comments.push(comment);
+  task.comments.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+  return true;
+}
+
+function appendRealtimeCommentToOpenList(comment, options = {}) {
+  if (!comment?.id || comment.taskId !== state.selectedTaskId) return;
+  const list = document.querySelector(".public-comments .comment-list");
+  if (!list || list.querySelector(`[data-comment-id="${cssEscapeValue(comment.id)}"]`)) return;
+  const wasAtBottom = options.forceScroll || list.scrollTop + list.clientHeight >= list.scrollHeight - 16;
+  list.querySelector(".empty")?.remove();
+  if (typeof renderPublicComment === "function") {
+    list.insertAdjacentHTML("beforeend", renderPublicComment(comment));
+  }
+  if (wasAtBottom) list.scrollTop = list.scrollHeight;
+}
+
+function cssEscapeValue(value) {
+  if (window.CSS?.escape) return CSS.escape(String(value));
+  return String(value).replaceAll('"', '\\"');
 }
 
 function captureRealtimeScrollSnapshot() {
@@ -116,6 +163,22 @@ function restoreRealtimeScrollSnapshot(snapshot, eventName, payload) {
     }
   }
   window.scrollTo({ top: snapshot.windowY });
+}
+
+function ensureRealtimeCommentStyles() {
+  if (document.querySelector("#realtimeCommentNoFlashStyles")) return;
+  const style = document.createElement("style");
+  style.id = "realtimeCommentNoFlashStyles";
+  style.textContent = `
+    .detail-layout { align-items: stretch; }
+    .detail-layout > .detail-main { align-self: stretch; }
+    .detail-layout > .comments.public-comments {
+      align-self: stretch;
+      height: auto;
+      min-height: 430px;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 function hydrateAssigneeFilter() {

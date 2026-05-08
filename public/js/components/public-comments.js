@@ -35,7 +35,7 @@ function quickReplyTexts() {
 
 function renderPublicComment(comment) {
   return `
-    <article class="message-card ${comment.authorRole || "unknown"}">
+    <article class="message-card ${comment.authorRole || "unknown"}" data-comment-id="${escapeAttr(comment.id || "")}">
       <div class="message-head">
         <div>
           <strong>${escapeHtml(comment.authorName || "成员")}</strong>
@@ -63,15 +63,24 @@ function bindPublicCommentEvents() {
     const message = document.querySelector("#publicCommentMessage");
     const button = form.querySelector('button[type="submit"]');
     const text = new FormData(form).get("text");
+    const selectedTaskId = state.selectedTaskId;
+    const modalWasOpen = Boolean(state.taskDetailModalOpen);
     message.textContent = "";
     button.disabled = true;
     try {
-      const selectedTaskId = state.selectedTaskId;
-      await api(`/api/tasks/${selectedTaskId}/comments`, { method: "POST", body: { text } });
-      await loadData();
+      const result = await api(`/api/tasks/${selectedTaskId}/comments`, { method: "POST", body: { text } });
       state.selectedTaskId = selectedTaskId;
-      state.taskDetailModalOpen = true;
-      render();
+      state.taskDetailModalOpen = modalWasOpen;
+      form.reset();
+      if (result.comment && typeof mergeRealtimeComment === "function") {
+        mergeRealtimeComment(result.comment);
+        appendRealtimeCommentToOpenList(result.comment, { forceScroll: true });
+      } else {
+        await loadData();
+        state.selectedTaskId = selectedTaskId;
+        state.taskDetailModalOpen = modalWasOpen;
+        render();
+      }
     } catch (error) {
       message.style.color = "#cf4d40";
       message.textContent = error.message;
