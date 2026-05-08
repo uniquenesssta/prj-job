@@ -7,13 +7,14 @@ function listDepartments(db = getDatabase()) {
 function createDepartment(department, db = getDatabase()) {
   db.prepare(`
     INSERT INTO departments (
-      id, name, description, defaultRole, permissionPreset, disabledAt, deletedAt, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, name, description, defaultRole, customRoleName, permissionPreset, disabledAt, deletedAt, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     department.id,
     department.name,
     department.description || "",
     department.defaultRole || "designer",
+    department.customRoleName || "",
     department.permissionPreset || "{}",
     department.disabledAt || "",
     department.deletedAt || "",
@@ -28,6 +29,7 @@ function updateDepartment(department, db = getDatabase()) {
     SET name = ?,
         description = ?,
         defaultRole = ?,
+        customRoleName = ?,
         permissionPreset = ?,
         disabledAt = ?,
         updatedAt = ?
@@ -36,6 +38,7 @@ function updateDepartment(department, db = getDatabase()) {
     department.name,
     department.description || "",
     department.defaultRole || "designer",
+    department.customRoleName || "",
     department.permissionPreset || "{}",
     department.disabledAt || "",
     department.updatedAt,
