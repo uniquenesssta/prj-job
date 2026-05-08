@@ -186,7 +186,7 @@ function canAccessDepartmentTask(user, task) {
 
 function visibleChildDepartmentIds(department, departments) {
   const allChildIds = childDepartmentIds(department.id, departments);
-  const selectedScope = parseChildDepartmentScope(department.childDepartmentScope).filter((id) => allChildIds.has(id));
+  const selectedScope = parseJsonArray(department.childDepartmentScope).filter((id) => allChildIds.has(id));
   if (!selectedScope.length) return allChildIds;
   const result = new Set();
   selectedScope.forEach((id) => {
@@ -196,19 +196,10 @@ function visibleChildDepartmentIds(department, departments) {
   return result;
 }
 
-function parseChildDepartmentScope(value) {
-  try {
-    const parsed = typeof value === "string" ? JSON.parse(value || "[]") : value;
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
-}
-
 function childDepartmentIds(parentId, departments) {
   const result = new Set();
   const visit = (id) => {
-    departments.filter((department) => department.parentId === id && !department.deletedAt && !department.disabledAt).forEach((department) => {
+    departments.filter((department) => departmentParents(department).includes(id) && !department.deletedAt && !department.disabledAt).forEach((department) => {
       if (result.has(department.id)) return;
       result.add(department.id);
       visit(department.id);
@@ -216,6 +207,21 @@ function childDepartmentIds(parentId, departments) {
   };
   visit(parentId);
   return result;
+}
+
+function departmentParents(department) {
+  const parents = parseJsonArray(department?.parentDepartmentIds);
+  if (department?.parentId && !parents.includes(department.parentId)) parents.unshift(department.parentId);
+  return [...new Set(parents.filter(Boolean))];
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value || "[]") : value;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
 }
 
 function departmentFlag(value) {
