@@ -82,6 +82,7 @@ function createSchema(db) {
       customRoleName TEXT NOT NULL DEFAULT '',
       permissionPreset TEXT NOT NULL DEFAULT '{}',
       parentId TEXT NOT NULL DEFAULT '',
+      parentDepartmentIds TEXT NOT NULL DEFAULT '[]',
       managerId TEXT NOT NULL DEFAULT '',
       allowViewOwnDepartmentTasks INTEGER NOT NULL DEFAULT 0,
       allowViewChildDepartmentTasks INTEGER NOT NULL DEFAULT 0,
@@ -252,12 +253,14 @@ function migrateDepartmentFields(db) {
   if (!columns.includes("customRoleName")) db.exec("ALTER TABLE departments ADD COLUMN customRoleName TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("permissionPreset")) db.exec("ALTER TABLE departments ADD COLUMN permissionPreset TEXT NOT NULL DEFAULT '{}'");
   if (!columns.includes("parentId")) db.exec("ALTER TABLE departments ADD COLUMN parentId TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("parentDepartmentIds")) db.exec("ALTER TABLE departments ADD COLUMN parentDepartmentIds TEXT NOT NULL DEFAULT '[]'");
   if (!columns.includes("managerId")) db.exec("ALTER TABLE departments ADD COLUMN managerId TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("allowViewOwnDepartmentTasks")) db.exec("ALTER TABLE departments ADD COLUMN allowViewOwnDepartmentTasks INTEGER NOT NULL DEFAULT 0");
   if (!columns.includes("allowViewChildDepartmentTasks")) db.exec("ALTER TABLE departments ADD COLUMN allowViewChildDepartmentTasks INTEGER NOT NULL DEFAULT 0");
   if (!columns.includes("childDepartmentScope")) db.exec("ALTER TABLE departments ADD COLUMN childDepartmentScope TEXT NOT NULL DEFAULT '[]'");
   if (!columns.includes("disabledAt")) db.exec("ALTER TABLE departments ADD COLUMN disabledAt TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("deletedAt")) db.exec("ALTER TABLE departments ADD COLUMN deletedAt TEXT NOT NULL DEFAULT ''");
+  db.exec("UPDATE departments SET parentDepartmentIds = CASE WHEN parentDepartmentIds = '[]' AND parentId != '' THEN json_array(parentId) ELSE parentDepartmentIds END");
 }
 
 function migrateFileUsageField(db) {
