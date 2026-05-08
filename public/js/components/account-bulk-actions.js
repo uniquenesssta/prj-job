@@ -30,7 +30,7 @@ function accountBulkInjectToolbar() {
 function renderAccountBulkActions() {
   const selectedCount = accountBulkSelectedIds().length;
   return `
-    <div class="account-toolbar" id="accountBulkActions">
+    <div class="account-bulk-actions" id="accountBulkActions">
       <label class="account-bulk-check">
         <span>批量选择</span>
         <div>
@@ -38,21 +38,21 @@ function renderAccountBulkActions() {
           <strong>已选 ${selectedCount} 个账号</strong>
         </div>
       </label>
-      <label>
+      <label class="account-bulk-field">
         <span>批量角色</span>
         <select id="accountBulkRoleSelect">
           <option value="">不调整角色</option>
           ${accountRoleEntries().map(([role, label]) => `<option value="${role}" ${state.accountBulkRole === role ? "selected" : ""}>${label}</option>`).join("")}
         </select>
       </label>
-      <label>
+      <label class="account-bulk-field">
         <span>批量部门</span>
         <select id="accountBulkDepartmentSelect">
           <option value="">不调整部门</option>
           ${state.departments.filter((dept) => !dept.disabledAt).map((dept) => `<option value="${dept.id}" ${state.accountBulkDepartmentId === dept.id ? "selected" : ""}>${escapeHtml(dept.name)}</option>`).join("")}
         </select>
       </label>
-      <div class="section-actions">
+      <div class="account-bulk-buttons">
         <button class="button secondary" id="accountBulkEnable" type="button" ${selectedCount ? "" : "disabled"}>批量启用</button>
         <button class="button secondary" id="accountBulkDisable" type="button" ${selectedCount ? "" : "disabled"}>批量禁用</button>
         <button class="button secondary" id="accountBulkApply" type="button" ${selectedCount ? "" : "disabled"}>应用角色/部门</button>
@@ -66,6 +66,7 @@ function accountBulkInjectRowSelectors() {
   document.querySelectorAll(".account-row").forEach((row) => {
     const userId = row.querySelector("button[data-user-id]")?.dataset.userId;
     if (!userId || row.querySelector(".account-bulk-row-check")) return;
+    row.classList.add("account-row-with-select");
     row.insertAdjacentHTML(
       "afterbegin",
       `<label class="account-bulk-row-check" title="选择账号"><input type="checkbox" data-account-select="${userId}" ${accountBulkSelectedIds().includes(userId) ? "checked" : ""} /></label>`
