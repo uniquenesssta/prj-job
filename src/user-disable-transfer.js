@@ -24,7 +24,7 @@ function validateDisableTransfer(db, target, body) {
   const summary = disableResponsibilitySummary(db, target);
   if (!summary.count) return { ok: true, summary, action: "keep" };
 
-  const action = String(body.disableTransferAction || "").trim();
+  const action = String(body.disableTransferAction || "keep").trim();
   if (!DISABLE_TRANSFER_ACTIONS.has(action)) {
     return { ok: false, summary, error: responsibilityRequiredMessage(target, summary) };
   }
