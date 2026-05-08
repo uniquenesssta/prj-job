@@ -27,14 +27,7 @@ function handleGetComments(req, res, taskId) {
   }
   const comments = readComments()
     .filter((comment) => comment.taskId === taskId)
-    .map((comment) => {
-      const author = db.users.find((item) => item.id === comment.authorId);
-      return {
-        ...comment,
-        authorName: author ? author.name : "未知",
-        authorRole: author ? author.role : "unknown",
-      };
-    });
+    .map((comment) => enrichComment(db, comment));
   sendJson(res, 200, { comments });
 }
 
@@ -71,6 +64,7 @@ async function handleCreateComment(req, res, taskId) {
   task.updatedAt = comment.createdAt;
   writeComments(comments);
   writeDb(db);
+  const enrichedComment = enrichComment(db, comment);
   insertOperationLog({
     userId: user.id,
     userName: user.name,
@@ -80,8 +74,18 @@ async function handleCreateComment(req, res, taskId) {
     detail: text.slice(0, 120),
     createdAt: comment.createdAt,
   });
-  broadcast("tasks-changed", { taskId });
-  sendJson(res, 201, { comment, task: enrichTask(db, task, comments) });
+  broadcast("comments-changed", { taskId, comment: enrichedComment, reason: "comment-created" });
+  broadcast("tasks-changed", { taskId, reason: "comment-created" });
+  sendJson(res, 201, { comment: enrichedComment, task: enrichTask(db, task, comments) });
+}
+
+function enrichComment(db, comment) {
+  const author = db.users.find((item) => item.id === comment.authorId);
+  return {
+    ...comment,
+    authorName: author ? author.name : "未知",
+    authorRole: author ? author.role : "unknown",
+  };
 }
 
 module.exports = {
