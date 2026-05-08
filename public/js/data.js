@@ -66,6 +66,11 @@ function handleRealtimeEvent(eventName, payload = {}) {
     return;
   }
 
+  if (shouldApplyCommentDeleteLocally(eventName, payload, selected)) {
+    removeRealtimeComment(payload.taskId, payload.commentId);
+    return;
+  }
+
   if (shouldIgnoreCommentTaskRefresh(eventName, payload, selected)) return;
 
   queueRealtimeSync(async () => {
@@ -77,8 +82,12 @@ function shouldApplyCommentRealtimeLocally(eventName, payload, selected) {
   return eventName === "comments-changed" && Boolean(selected) && payload?.taskId === selected && Boolean(payload.comment?.id);
 }
 
+function shouldApplyCommentDeleteLocally(eventName, payload, selected) {
+  return eventName === "comments-changed" && payload?.reason === "comment-deleted" && Boolean(selected) && payload.taskId === selected && Boolean(payload.commentId);
+}
+
 function shouldIgnoreCommentTaskRefresh(eventName, payload, selected) {
-  return eventName === "tasks-changed" && payload?.reason === "comment-created" && Boolean(selected) && payload.taskId === selected;
+  return eventName === "tasks-changed" && ["comment-created", "comment-deleted"].includes(payload?.reason) && Boolean(selected) && payload.taskId === selected;
 }
 
 function queueRealtimeSync(syncer) {
@@ -113,6 +122,7 @@ async function syncRealtimeData({ eventName, payload, selected, shouldKeepDetail
     state.taskDetailModalOpen = false;
   }
   render();
+  syncPublicCommentsLayoutHeight();
   restoreRealtimeScrollSnapshot(scrollSnapshot, eventName, payload);
 }
 
@@ -131,12 +141,30 @@ function appendRealtimeCommentToOpenList(comment, options = {}) {
   if (!comment?.id || comment.taskId !== state.selectedTaskId) return;
   const list = document.querySelector(".public-comments .comment-list");
   if (!list || list.querySelector(`[data-comment-id="${cssEscapeValue(comment.id)}"]`)) return;
+  syncPublicCommentsLayoutHeight();
   const wasAtBottom = options.forceScroll || list.scrollTop + list.clientHeight >= list.scrollHeight - 16;
   list.querySelector(".empty")?.remove();
   if (typeof renderPublicComment === "function") {
     list.insertAdjacentHTML("beforeend", renderPublicComment(comment));
   }
+  syncPublicCommentsLayoutHeight();
   if (wasAtBottom) list.scrollTop = list.scrollHeight;
+}
+
+function removeRealtimeComment(taskId, commentId) {
+  if (!taskId || !commentId) return false;
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (task && Array.isArray(task.comments)) {
+    task.comments = task.comments.filter((comment) => comment.id !== commentId);
+  }
+  const node = document.querySelector(`.public-comments .comment-list [data-comment-id="${cssEscapeValue(commentId)}"]`);
+  const list = node?.closest(".comment-list");
+  node?.remove();
+  if (list && !list.querySelector(".message-card")) {
+    list.innerHTML = '<div class="empty small-empty">还没有留言</div>';
+  }
+  syncPublicCommentsLayoutHeight();
+  return true;
 }
 
 function cssEscapeValue(value) {
@@ -170,15 +198,57 @@ function ensureRealtimeCommentStyles() {
   const style = document.createElement("style");
   style.id = "realtimeCommentNoFlashStyles";
   style.textContent = `
-    .detail-layout { align-items: stretch; }
-    .detail-layout > .detail-main { align-self: stretch; }
+    .detail-layout { align-items: start; }
+    .detail-layout > .detail-main { align-self: start; }
     .detail-layout > .comments.public-comments {
-      align-self: stretch;
-      height: auto;
+      align-self: start;
+      overflow: hidden;
       min-height: 430px;
+    }
+    .public-comments .comment-list {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .message-actions {
+      display: grid;
+      justify-items: end;
+      gap: 4px;
+    }
+    .message-delete,
+    .remark-delete {
+      min-height: 24px;
+      border: 1px solid rgba(207, 77, 64, 0.28);
+      border-radius: 999px;
+      background: rgba(207, 77, 64, 0.08);
+      color: var(--red);
+      padding: 0 8px;
+      font-size: 0.76rem;
+      font-weight: 900;
     }
   `;
   document.head.appendChild(style);
+  if (!state.realtimeCommentHeightObserver) {
+    state.realtimeCommentHeightObserver = new MutationObserver(() => requestAnimationFrame(syncPublicCommentsLayoutHeight));
+    state.realtimeCommentHeightObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+    window.addEventListener("resize", () => requestAnimationFrame(syncPublicCommentsLayoutHeight));
+  }
+  requestAnimationFrame(syncPublicCommentsLayoutHeight);
+}
+
+function syncPublicCommentsLayoutHeight() {
+  const layout = document.querySelector(".detail-layout:not(.solo-detail)");
+  const comments = layout?.querySelector(".comments.public-comments");
+  const main = layout?.querySelector(".detail-main");
+  if (!layout || !comments || !main) return;
+  comments.style.height = "auto";
+  comments.style.maxHeight = "";
+  comments.style.minHeight = "430px";
+  const mainHeight = Math.ceil(main.getBoundingClientRect().height);
+  const lockedHeight = Math.max(430, mainHeight);
+  comments.style.height = `${lockedHeight}px`;
+  comments.style.maxHeight = `${lockedHeight}px`;
+  comments.style.minHeight = `${lockedHeight}px`;
 }
 
 function hydrateAssigneeFilter() {

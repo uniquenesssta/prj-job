@@ -39,11 +39,15 @@ function renderPersonalRemark(task) {
 
 function renderPersonalRemarkRecord(record) {
   const images = record.images || [];
+  const canDelete = record.userId === state.user.id;
   return `
-    <article class="remark-record">
+    <article class="remark-record" data-note-id="${escapeAttr(record.id || "")}">
       <div class="message-head">
         <strong>${escapeHtml(record.authorName || "我")}</strong>
-        <time>${formatDateTime(record.createdAt)}</time>
+        <div class="message-actions">
+          <time>${formatDateTime(record.createdAt)}</time>
+          ${canDelete ? `<button class="remark-delete" type="button" data-delete-note-id="${escapeAttr(record.id || "")}">删除</button>` : ""}
+        </div>
       </div>
       ${record.text ? `<p>${escapeHtml(record.text)}</p>` : ""}
       ${images.length ? `
@@ -116,7 +120,12 @@ function bindPersonalRemarkEvents() {
   });
   renderPendingRemarkImages(preview);
 
-  document.querySelector(".remark-record-list")?.addEventListener("click", (event) => {
+  document.querySelector(".remark-record-list")?.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest("button[data-delete-note-id]");
+    if (deleteButton) {
+      await deletePersonalRemark(deleteButton.dataset.deleteNoteId);
+      return;
+    }
     const button = event.target.closest("button[data-remark-image-id]");
     if (!button) return;
     state.remarkImageViewer = {
@@ -149,6 +158,16 @@ function bindPersonalRemarkEvents() {
       button.disabled = false;
     }
   });
+}
+
+async function deletePersonalRemark(noteId) {
+  if (!noteId || !state.selectedTaskId) return;
+  const confirmed = window.confirm("确认删除这条个人备注？");
+  if (!confirmed) return;
+  await api(`/api/tasks/${state.selectedTaskId}/personal-note/${noteId}`, { method: "DELETE" });
+  const notes = state.personalNotesByTask[state.selectedTaskId] || [];
+  state.personalNotesByTask[state.selectedTaskId] = notes.filter((note) => note.id !== noteId);
+  render();
 }
 
 function bindRemarkImageViewerEvents() {

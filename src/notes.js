@@ -2,6 +2,7 @@ const { readBody, readJson, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { createId, readDb, writeDb } = require("./storage");
 const {
+  deletePersonalNoteForUser,
   insertPersonalNote,
   listPersonalNotesForUserTask,
 } = require("./repositories/notes-repo");
@@ -133,6 +134,43 @@ async function handleMultipartPersonalNote(req, res, user, taskId) {
   });
 }
 
+function handleDeletePersonalNote(req, res, taskId, noteId) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const db = readDb();
+  const task = db.tasks.find((item) => item.id === taskId);
+  if (!task) {
+    sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (!canAccessTask(user, task)) {
+    sendError(res, 403, "无权访问该任务");
+    return;
+  }
+  const note = deletePersonalNoteForUser(noteId, user.id, taskId);
+  if (!note) {
+    sendError(res, 404, "备注不存在或不是你的备注");
+    return;
+  }
+  const imageIds = new Set(note.imageFileIds || []);
+  if (imageIds.size) {
+    db.files = db.files.filter((file) => !imageIds.has(file.id));
+  }
+  task.updatedAt = new Date().toISOString();
+  writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "delete_personal_note",
+    targetType: "task",
+    targetId: taskId,
+    detail: note.text.slice(0, 120),
+    createdAt: task.updatedAt,
+  });
+  broadcast("tasks-changed", { taskId, reason: "personal-note-deleted" });
+  sendJson(res, 200, { ok: true, noteId });
+}
+
 function enrichPersonalNote(db, note) {
   const author = db.users.find((user) => user.id === note.userId);
   return {
@@ -146,6 +184,7 @@ function enrichPersonalNote(db, note) {
 }
 
 module.exports = {
+  handleDeletePersonalNote,
   handleGetPersonalNote,
   handlePutPersonalNote,
 };

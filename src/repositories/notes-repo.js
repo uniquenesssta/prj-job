@@ -26,6 +26,13 @@ function insertPersonalNote(note, db = getDatabase()) {
   );
 }
 
+function deletePersonalNoteForUser(noteId, userId, taskId, db = getDatabase()) {
+  const note = db.prepare("SELECT * FROM personal_notes WHERE id = ? AND userId = ? AND taskId = ?").get(noteId, userId, taskId);
+  if (!note) return null;
+  db.prepare("DELETE FROM personal_notes WHERE id = ?").run(noteId);
+  return normalizePersonalNote(note);
+}
+
 function normalizePersonalNote(note) {
   return {
     ...note,
@@ -43,6 +50,7 @@ function parseJsonArray(value) {
 }
 
 module.exports = {
+  deletePersonalNoteForUser,
   insertPersonalNote,
   listPersonalNotesForTask,
   listPersonalNotesForUserTask,

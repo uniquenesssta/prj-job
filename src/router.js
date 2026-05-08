@@ -10,7 +10,7 @@ const {
   handleUsers,
   requireUser,
 } = require("./auth");
-const { handleCreateComment, handleGetComments } = require("./comments");
+const { handleCreateComment, handleDeleteComment, handleGetComments } = require("./comments");
 const { handleCreateDepartment, handleGetDepartments, handleUpdateDepartment } = require("./departments");
 const { handleEvents } = require("./events");
 const { handleDeleteFile, handleDownload, handleInlineFile, handleUpload } = require("./files");
@@ -22,7 +22,7 @@ const {
   handleScanMissingFiles,
   handleScanOrphanFiles,
 } = require("./maintenance");
-const { handleGetPersonalNote, handlePutPersonalNote } = require("./notes");
+const { handleDeletePersonalNote, handleGetPersonalNote, handlePutPersonalNote } = require("./notes");
 const { handleCreateRemark } = require("./remarks");
 const { serveStatic } = require("./static");
 const {
@@ -74,9 +74,13 @@ function route(req, res) {
       if (req.method === "POST" && upload) return handleUpload(req, res, upload[1]);
       const remark = pathname.match(/^\/api\/tasks\/([^/]+)\/remarks$/);
       if (req.method === "POST" && remark) return handleCreateRemark(req, res, remark[1]);
+      const commentItem = pathname.match(/^\/api\/tasks\/([^/]+)\/comments\/([^/]+)$/);
+      if (req.method === "DELETE" && commentItem) return handleDeleteComment(req, res, commentItem[1], commentItem[2]);
       const comment = pathname.match(/^\/api\/tasks\/([^/]+)\/comments$/);
       if (req.method === "GET" && comment) return handleGetComments(req, res, comment[1]);
       if (req.method === "POST" && comment) return handleCreateComment(req, res, comment[1]);
+      const personalNoteItem = pathname.match(/^\/api\/tasks\/([^/]+)\/personal-note\/([^/]+)$/);
+      if (req.method === "DELETE" && personalNoteItem) return handleDeletePersonalNote(req, res, personalNoteItem[1], personalNoteItem[2]);
       const personalNote = pathname.match(/^\/api\/tasks\/([^/]+)\/personal-note$/);
       if (req.method === "GET" && personalNote) return handleGetPersonalNote(req, res, personalNote[1]);
       if (req.method === "PUT" && personalNote) return handlePutPersonalNote(req, res, personalNote[1]);

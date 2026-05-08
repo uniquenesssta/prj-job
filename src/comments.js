@@ -79,6 +79,47 @@ async function handleCreateComment(req, res, taskId) {
   sendJson(res, 201, { comment: enrichedComment, task: enrichTask(db, task, comments) });
 }
 
+function handleDeleteComment(req, res, taskId, commentId) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const db = readDb();
+  const task = db.tasks.find((item) => item.id === taskId);
+  if (!task) {
+    sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (!canAccessTask(user, task)) {
+    sendError(res, 403, "无权访问该任务");
+    return;
+  }
+  const comments = readComments();
+  const comment = comments.find((item) => item.id === commentId && item.taskId === taskId);
+  if (!comment) {
+    sendError(res, 404, "留言不存在");
+    return;
+  }
+  if (comment.authorId !== user.id) {
+    sendError(res, 403, "只能删除自己的留言");
+    return;
+  }
+  const nextComments = comments.filter((item) => item.id !== commentId);
+  task.updatedAt = new Date().toISOString();
+  writeComments(nextComments);
+  writeDb(db);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "delete_comment",
+    targetType: "task",
+    targetId: taskId,
+    detail: comment.text.slice(0, 120),
+    createdAt: task.updatedAt,
+  });
+  broadcast("comments-changed", { taskId, commentId, reason: "comment-deleted" });
+  broadcast("tasks-changed", { taskId, reason: "comment-deleted" });
+  sendJson(res, 200, { ok: true, commentId });
+}
+
 function enrichComment(db, comment) {
   const author = db.users.find((item) => item.id === comment.authorId);
   return {
@@ -90,5 +131,6 @@ function enrichComment(db, comment) {
 
 module.exports = {
   handleCreateComment,
+  handleDeleteComment,
   handleGetComments,
 };

@@ -34,6 +34,7 @@ function quickReplyTexts() {
 }
 
 function renderPublicComment(comment) {
+  const canDelete = comment.authorId === state.user.id;
   return `
     <article class="message-card ${comment.authorRole || "unknown"}" data-comment-id="${escapeAttr(comment.id || "")}">
       <div class="message-head">
@@ -41,7 +42,10 @@ function renderPublicComment(comment) {
           <strong>${escapeHtml(comment.authorName || "成员")}</strong>
           <span>${roleLabels[comment.authorRole] || "成员"}</span>
         </div>
-        <time>${formatDateTime(comment.createdAt)}</time>
+        <div class="message-actions">
+          <time>${formatDateTime(comment.createdAt)}</time>
+          ${canDelete ? `<button class="message-delete" type="button" data-delete-comment-id="${escapeAttr(comment.id || "")}">删除</button>` : ""}
+        </div>
       </div>
       <p>${escapeHtml(comment.text || "")}</p>
     </article>
@@ -51,6 +55,12 @@ function renderPublicComment(comment) {
 function bindPublicCommentEvents() {
   const form = document.querySelector("#publicCommentForm");
   if (!form) return;
+  document.querySelector(".public-comments .comment-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-delete-comment-id]");
+    if (!button) return;
+    await deletePublicComment(button.dataset.deleteCommentId);
+  });
+
   form.querySelector(".quick-replies")?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-quick-reply]");
     if (!button) return;
@@ -88,4 +98,18 @@ function bindPublicCommentEvents() {
       button.disabled = false;
     }
   });
+}
+
+
+async function deletePublicComment(commentId) {
+  if (!commentId || !state.selectedTaskId) return;
+  const confirmed = window.confirm("确认删除这条留言？");
+  if (!confirmed) return;
+  await api(`/api/tasks/${state.selectedTaskId}/comments/${commentId}`, { method: "DELETE" });
+  if (typeof removeRealtimeComment === "function") {
+    removeRealtimeComment(state.selectedTaskId, commentId);
+  } else {
+    await loadData();
+    render();
+  }
 }
