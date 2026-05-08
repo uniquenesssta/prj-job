@@ -2,11 +2,15 @@ const fs = require("fs");
 const path = require("path");
 const yazl = require("yazl");
 const { ARCHIVE_DIR, CONFIG } = require("./config");
+const { runInTransaction } = require("./database");
 const { sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { enrichTask, publicUser, readComments, readDb, writeDb, writeJsonFile } = require("./storage");
 const { requireUser } = require("./auth");
 const { canArchiveTask, hasPermission } = require("./permissions");
+const { deleteFileRecord } = require("./repositories/files-repo");
+const { detachFileFromAllTasks, updateTask } = require("./repositories/tasks-repo");
+const { removeFileIdFromPersonalNotes } = require("./repositories/notes-repo");
 const { insertArchiveRecord, insertOperationLog } = require("./repositories/system-repo");
 const {
   contentDispositionHeader,
@@ -30,6 +34,12 @@ async function handleArchiveDoneTasks(req, res) {
   const tasks = db.tasks.filter((task) => canArchiveTask(user, task));
   if (!tasks.length) {
     sendError(res, 400, "没有可归档的已完成任务");
+    return;
+  }
+
+  const integrity = scanArchiveIntegrity(db, { tasks });
+  if (integrity.missingFiles.length || integrity.missingFileReferences.length) {
+    sendArchiveIntegrityError(res, integrity);
     return;
   }
 
@@ -75,6 +85,13 @@ async function handleArchiveOneTask(req, res, taskId) {
     sendError(res, 403, "无权归档该任务");
     return;
   }
+
+  const integrity = scanArchiveIntegrity(db, { tasks: [task] });
+  if (integrity.missingFiles.length || integrity.missingFileReferences.length) {
+    sendArchiveIntegrityError(res, integrity);
+    return;
+  }
+
   try {
     const result = await createTaskArchive(db, [task]);
     markTasksArchived(db, [task], result, user);
@@ -82,6 +99,71 @@ async function handleArchiveOneTask(req, res, taskId) {
   } catch (error) {
     sendError(res, 500, `归档失败：${error.message}`);
   }
+}
+
+function handleArchiveMissingFiles(req, res) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  if (!hasPermission(user, "archives.manage")) {
+    sendError(res, 403, "只有管理员可以扫描归档缺失文件");
+    return;
+  }
+  const db = readDb();
+  const integrity = scanArchiveIntegrity(db, {
+    tasks: db.tasks.filter((task) => !task.deletedAt && (task.status === "done" || task.archivedAt)),
+    includeArchivePackages: true,
+  });
+  sendJson(res, 200, integrity);
+}
+
+function handleDeleteMissingArchiveFile(req, res, fileId) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  if (!hasPermission(user, "archives.manage")) {
+    sendError(res, 403, "只有管理员可以清理归档缺失文件记录");
+    return;
+  }
+
+  const db = readDb();
+  const file = db.files.find((item) => item.id === fileId);
+  if (file) {
+    const source = storedFilePath(file);
+    if (fs.existsSync(source)) {
+      sendError(res, 400, "本地文件仍然存在，不能作为缺失文件记录删除");
+      return;
+    }
+  }
+
+  const affectedTasks = db.tasks.filter((task) => taskReferencesFile(task, fileId) || (file && task.id === file.taskId));
+  if (!file && !affectedTasks.length) {
+    sendError(res, 404, "没有找到可清理的缺失文件记录");
+    return;
+  }
+  affectedTasks.forEach((task) => removeFileReferenceFromTask(task, fileId));
+
+  runInTransaction((database) => {
+    detachFileFromAllTasks(fileId, database);
+    removeFileIdFromPersonalNotes(fileId, database);
+    if (file) deleteFileRecord(fileId, database);
+    affectedTasks.forEach((task) => updateTask(task, database));
+  });
+
+  const taskIds = affectedTasks.map((task) => task.id);
+  insertOperationLog({
+    userId: user.id,
+    userName: user.name,
+    action: "archive_missing_file.clean",
+    targetType: "file",
+    targetId: fileId,
+    detail: JSON.stringify({
+      taskIds,
+      originalName: file?.originalName || "missing_file_record",
+      relativePath: file?.relativePath || "",
+    }),
+  });
+  broadcast("files-changed", { taskIds, fileId, reason: "missing-file-cleaned" });
+  broadcast("tasks-changed", { taskIds, reason: "missing-file-cleaned" });
+  sendJson(res, 200, { ok: true, fileId, taskIds });
 }
 
 function handleDownloadTaskArchive(req, res, taskId) {
@@ -105,7 +187,7 @@ function handleDownloadTaskArchive(req, res, taskId) {
 
   const zipPath = path.resolve(task.archiveZipPath);
   const archiveRoot = path.resolve(ARCHIVE_DIR);
-  if (!zipPath.startsWith(`${archiveRoot}${path.sep}`) && zipPath !== archiveRoot) {
+  if (!isPathInside(zipPath, archiveRoot)) {
     sendError(res, 400, "归档路径不合法");
     return;
   }
@@ -190,6 +272,7 @@ async function createTaskArchive(db, tasks) {
 
   const taskDir = uniqueDirectory(path.join(archivePath, "tasks", archiveTaskFolderNameV2(db, task)));
   const enriched = enrichTask(db, task, comments);
+  const archiveFiles = archiveFileRecordsForTask(db, task);
   fs.mkdirSync(taskDir, { recursive: true });
   fs.mkdirSync(path.join(taskDir, "files"), { recursive: true });
   fs.mkdirSync(path.join(taskDir, "remark-images"), { recursive: true });
@@ -197,19 +280,15 @@ async function createTaskArchive(db, tasks) {
   writeCommentTxt(path.join(taskDir, "留言.txt"), enriched.comments || []);
   writeRemarkTxt(path.join(taskDir, "个人备注.txt"), enriched.remarkRecords || []);
 
-  for (const file of enriched.attachments || []) {
+  for (const file of archiveFiles.attachments) {
     const source = storedFilePath(file);
-    if (!fs.existsSync(source)) continue;
     const target = path.join(taskDir, "files", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
     fs.copyFileSync(source, uniquePath(target));
   }
-  for (const remark of enriched.remarkRecords || []) {
-    for (const file of remark.images || []) {
-      const source = storedFilePath(file);
-      if (!fs.existsSync(source)) continue;
-      const target = path.join(taskDir, "remark-images", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
-      fs.copyFileSync(source, uniquePath(target));
-    }
+  for (const file of archiveFiles.remarkImages) {
+    const source = storedFilePath(file);
+    const target = path.join(taskDir, "remark-images", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
+    fs.copyFileSync(source, uniquePath(target));
   }
 
   writeArchiveManifest(path.join(archivePath, "manifest.json"), {
@@ -219,7 +298,8 @@ async function createTaskArchive(db, tasks) {
     taskId: task.id,
     archivedAt: new Date().toISOString(),
     taskSnapshot: enriched,
-    files: enriched.attachments || [],
+    files: archiveFiles.attachments,
+    remarkImages: archiveFiles.remarkImages,
     comments: enriched.comments || [],
     remarkRecords: enriched.remarkRecords || [],
   });
@@ -232,6 +312,140 @@ async function createTaskArchive(db, tasks) {
     archivePath,
     zipPath,
   };
+}
+
+function taskReferencesFile(task, fileId) {
+  const id = String(fileId || "");
+  if (!task || !id) return false;
+  if ((task.attachments || []).includes(id)) return true;
+  return (task.remarkRecords || []).some((record) => (record.imageFileIds || []).includes(id));
+}
+
+function removeFileReferenceFromTask(task, fileId) {
+  const id = String(fileId || "");
+  task.attachments = (task.attachments || []).filter((attachmentId) => attachmentId !== id);
+  task.remarkRecords = (task.remarkRecords || []).map((record) => ({
+    ...record,
+    imageFileIds: (record.imageFileIds || []).filter((imageId) => imageId !== id),
+  }));
+  task.updatedAt = new Date().toISOString();
+}
+
+function scanArchiveIntegrity(db, options = {}) {
+  const tasks = Array.isArray(options.tasks) ? options.tasks : db.tasks.filter((task) => !task.deletedAt);
+  const missingFiles = [];
+  const missingFileReferences = [];
+  const missingArchives = [];
+
+  for (const task of tasks) {
+    const expectedFiles = expectedArchiveFilesForTask(db, task);
+    for (const item of expectedFiles) {
+      if (!item.file) {
+        missingFileReferences.push({
+          taskId: task.id,
+          taskTitle: task.title,
+          fileId: item.fileId,
+          source: item.source,
+          reason: "文件记录不存在",
+        });
+        continue;
+      }
+      const filePath = storedFilePath(item.file);
+      if (!fs.existsSync(filePath)) {
+        missingFiles.push(formatMissingFile(task, item.file, filePath, item.source));
+      }
+    }
+
+    if (options.includeArchivePackages && task.archivedAt && task.archiveZipPath) {
+      const zipPath = path.resolve(task.archiveZipPath);
+      const archiveRoot = path.resolve(ARCHIVE_DIR);
+      const missing = !isPathInside(zipPath, archiveRoot) || !fs.existsSync(zipPath);
+      if (missing) {
+        missingArchives.push({
+          taskId: task.id,
+          taskTitle: task.title,
+          zipPath: task.archiveZipPath,
+          reason: !isPathInside(zipPath, archiveRoot) ? "归档路径不合法" : "归档包本地文件不存在",
+        });
+      }
+    }
+  }
+
+  return {
+    ok: missingFiles.length === 0 && missingFileReferences.length === 0 && missingArchives.length === 0,
+    missingFiles,
+    missingFileReferences,
+    missingArchives,
+    scannedTasks: tasks.length,
+    scannedAt: new Date().toISOString(),
+  };
+}
+
+function expectedArchiveFilesForTask(db, task) {
+  const result = [];
+  const seen = new Set();
+  const pushFileId = (fileId, source) => {
+    if (!fileId || seen.has(fileId)) return;
+    seen.add(fileId);
+    result.push({
+      fileId,
+      source,
+      file: db.files.find((item) => item.id === fileId) || null,
+    });
+  };
+
+  (task.attachments || []).forEach((fileId) => pushFileId(fileId, "task_attachment"));
+  (task.remarkRecords || []).forEach((record) => {
+    (record.imageFileIds || []).forEach((fileId) => pushFileId(fileId, "task_remark_image"));
+  });
+  db.files
+    .filter((file) => file.taskId === task.id && file.storageArea === "remarkImage")
+    .forEach((file) => pushFileId(file.id, "personal_note_image"));
+
+  return result;
+}
+
+function archiveFileRecordsForTask(db, task) {
+  const expected = expectedArchiveFilesForTask(db, task)
+    .map((item) => item.file)
+    .filter(Boolean);
+  const attachmentIds = new Set(task.attachments || []);
+  return {
+    attachments: expected.filter((file) => attachmentIds.has(file.id) || file.storageArea !== "remarkImage"),
+    remarkImages: expected.filter((file) => file.storageArea === "remarkImage"),
+  };
+}
+
+function formatMissingFile(task, file, filePath, source) {
+  return {
+    taskId: task.id,
+    taskTitle: task.title,
+    fileId: file.id,
+    originalName: file.originalName || file.storedName || file.id,
+    usage: file.usage || "other",
+    storageArea: file.storageArea || "upload",
+    uploadedByName: file.uploadedByName || "未知",
+    uploadedAt: file.uploadedAt || "",
+    relativePath: file.relativePath || file.storedName || "",
+    expectedPath: filePath,
+    source,
+    reason: "本地文件不存在",
+  };
+}
+
+function sendArchiveIntegrityError(res, integrity) {
+  const count = integrity.missingFiles.length + integrity.missingFileReferences.length;
+  sendJson(res, 409, {
+    error: `发现 ${count} 个缺失文件，已阻止归档。请在归档页删除缺失文件记录或重新上传后再归档。`,
+    code: "ARCHIVE_MISSING_FILES",
+    ...integrity,
+  });
+}
+
+function isPathInside(targetPath, rootPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(rootPath);
+  return resolvedTarget === resolvedRoot || resolvedTarget.startsWith(`${resolvedRoot}${path.sep}`);
 }
 
 function writeArchiveManifest(filePath, data) {
@@ -322,6 +536,9 @@ function listFilesRecursive(dir) {
 module.exports = {
   createTaskArchive,
   handleArchiveDoneTasks,
+  handleArchiveMissingFiles,
   handleArchiveOneTask,
+  handleDeleteMissingArchiveFile,
   handleDownloadTaskArchive,
+  scanArchiveIntegrity,
 };

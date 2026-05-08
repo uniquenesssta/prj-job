@@ -33,6 +33,21 @@ function deletePersonalNoteForUser(noteId, userId, taskId, db = getDatabase()) {
   return normalizePersonalNote(note);
 }
 
+function removeFileIdFromPersonalNotes(fileId, db = getDatabase()) {
+  const target = String(fileId || "");
+  if (!target) return 0;
+  const rows = db.prepare("SELECT id, imageFileIds FROM personal_notes").all();
+  const update = db.prepare("UPDATE personal_notes SET imageFileIds = ? WHERE id = ?");
+  let changed = 0;
+  rows.forEach((row) => {
+    const imageFileIds = parseJsonArray(row.imageFileIds);
+    if (!imageFileIds.includes(target)) return;
+    update.run(JSON.stringify(imageFileIds.filter((id) => id !== target)), row.id);
+    changed += 1;
+  });
+  return changed;
+}
+
 function normalizePersonalNote(note) {
   return {
     ...note,
@@ -55,4 +70,5 @@ module.exports = {
   listPersonalNotesForTask,
   listPersonalNotesForUserTask,
   listPersonalNotes,
+  removeFileIdFromPersonalNotes,
 };

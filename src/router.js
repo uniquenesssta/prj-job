@@ -1,6 +1,12 @@
 const { URL } = require("url");
 const { sendError } = require("./http-utils");
-const { handleArchiveDoneTasks, handleArchiveOneTask, handleDownloadTaskArchive } = require("./archive");
+const {
+  handleArchiveDoneTasks,
+  handleArchiveMissingFiles,
+  handleArchiveOneTask,
+  handleDeleteMissingArchiveFile,
+  handleDownloadTaskArchive,
+} = require("./archive");
 const {
   handleCreateUser,
   handleLogin,
@@ -62,6 +68,9 @@ function route(req, res) {
       if (req.method === "POST" && pathname === "/api/maintenance/archive-operation-logs") return handleArchiveOperationLogs(req, res);
       if (req.method === "POST" && pathname === "/api/maintenance/compact-databases") return handleCompactDatabases(req, res);
       if (req.method === "GET" && pathname === "/api/operation-logs") return handleOperationLogs(req, res);
+      if (req.method === "GET" && pathname === "/api/archive/missing-files") return handleArchiveMissingFiles(req, res);
+      const archiveMissingFile = pathname.match(/^\/api\/archive\/missing-files\/([^/]+)$/);
+      if (req.method === "DELETE" && archiveMissingFile) return handleDeleteMissingArchiveFile(req, res, archiveMissingFile[1]);
       if (req.method === "POST" && pathname === "/api/archive") return handleArchiveDoneTasks(req, res);
       if (req.method === "GET" && pathname === "/api/tasks") return handleGetTasks(req, res);
       if (req.method === "POST" && pathname === "/api/tasks") return handleCreateTask(req, res);

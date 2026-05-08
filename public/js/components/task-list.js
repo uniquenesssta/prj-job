@@ -105,9 +105,16 @@ function renderTaskCard(task) {
 function renderTaskCardActions(task) {
   if (task.archivedAt) {
     if (!userHasPermission("archives.manage")) return "";
+    const downloadButton = task.archivePackageMissing
+      ? '<span class="signal danger">归档包缺失</span>'
+      : `<button class="button compact-button" type="button" data-download-archive-task-id="${task.id}">下载归档包</button>`;
+    const deleteButton = task.archivePackageMissing && userHasPermission("tasks.delete")
+      ? `<button class="button danger compact-button" type="button" data-delete-task-id="${task.id}">删除归档任务</button>`
+      : "";
     return `
       <div class="task-card-actions">
-        <button class="button compact-button" type="button" data-download-archive-task-id="${task.id}">下载归档包</button>
+        ${downloadButton}
+        ${deleteButton}
       </div>
     `;
   }

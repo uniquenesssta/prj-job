@@ -44,6 +44,7 @@ const state = {
   peerViewSelectedId: "",
   peerViewSearch: "",
   peerViewStatus: "all",
+  archiveMissingScan: null,
 };
 
 const statusLabels = {

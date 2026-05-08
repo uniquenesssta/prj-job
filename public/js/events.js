@@ -95,6 +95,11 @@ function bindStaticEvents() {
 function bindTaskPageEvents() {
   document.querySelector("#refreshTasks")?.addEventListener("click", reloadTasks);
   document.querySelector("#taskList")?.addEventListener("click", async (event) => {
+    const missingFileDeleteButton = event.target.closest("button[data-delete-missing-file-id]");
+    if (missingFileDeleteButton) {
+      await deleteMissingArchiveFile(missingFileDeleteButton.dataset.deleteMissingFileId);
+      return;
+    }
     const archiveDownloadButton = event.target.closest("button[data-download-archive-task-id]");
     if (archiveDownloadButton) {
       const taskId = archiveDownloadButton.dataset.downloadArchiveTaskId;
@@ -137,20 +142,68 @@ function bindArchiveButton() {
         message.style.color = "#2f9563";
         message.textContent = `已归档 ${data.archivedTasks || 0} 个项目。`;
       }
+      state.archiveMissingScan = null;
       await loadData();
       render();
     } catch (error) {
+      if (error.data?.code === "ARCHIVE_MISSING_FILES") state.archiveMissingScan = error.data;
       if (message) {
         message.style.color = "#cf4d40";
-        message.textContent = error.message;
+        message.textContent = describeArchiveIntegrityError(error);
       } else {
-        alert(error.message);
+        alert(describeArchiveIntegrityError(error));
       }
+      if (error.data?.code === "ARCHIVE_MISSING_FILES") render();
     } finally {
       button.disabled = false;
       button.textContent = originalText;
     }
   });
+}
+
+function bindArchiveMissingEvents() {
+  document.querySelector("#scanArchiveMissing")?.addEventListener("click", async () => {
+    await loadArchiveMissingScan();
+    render();
+  });
+  document.querySelectorAll("[data-delete-missing-file-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await deleteMissingArchiveFile(button.dataset.deleteMissingFileId);
+    });
+  });
+  document.querySelectorAll(".archive-missing-panel [data-delete-task-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await deleteTask(button.dataset.deleteTaskId);
+    });
+  });
+}
+
+async function loadArchiveMissingScan() {
+  state.archiveMissingScan = await api("/api/archive/missing-files");
+}
+
+async function deleteMissingArchiveFile(fileId) {
+  if (!fileId) return;
+  if (!confirm("确认删除这条缺失文件记录？只会删除数据库中的失效记录，不会删除真实文件。")) return;
+  await api(`/api/archive/missing-files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+  await loadArchiveMissingScan();
+  await loadData();
+  render();
+}
+
+function describeArchiveIntegrityError(error) {
+  const data = error?.data || {};
+  if (data.code !== "ARCHIVE_MISSING_FILES") return error.message || "操作失败";
+  const missingFiles = data.missingFiles || [];
+  const missingRefs = data.missingFileReferences || [];
+  const examples = missingFiles.slice(0, 3).map((item) => `- ${item.taskTitle || item.taskId}：${item.originalName || item.fileId}`);
+  const refExamples = missingRefs.slice(0, 2).map((item) => `- ${item.taskTitle || item.taskId}：${item.fileId}`);
+  return [
+    data.error || "发现缺失文件，已阻止归档。",
+    ...examples,
+    ...refExamples,
+    missingFiles.length + missingRefs.length > examples.length + refExamples.length ? "请在归档页查看完整列表并删除缺失记录。" : "请删除缺失记录或重新上传后再归档。",
+  ].filter(Boolean).join("\n");
 }
 
 function bindDetailEvents() {
@@ -187,10 +240,19 @@ function bindDetailEvents() {
   });
 
   document.querySelector("#archiveTaskButton")?.addEventListener("click", async () => {
-    await api(`/api/tasks/${state.selectedTaskId}/archive`, { method: "POST" });
-    state.selectedTaskId = null;
-    await loadData();
-    render();
+    try {
+      await api(`/api/tasks/${state.selectedTaskId}/archive`, { method: "POST" });
+      state.archiveMissingScan = null;
+      state.selectedTaskId = null;
+      await loadData();
+      render();
+    } catch (error) {
+      if (error.data?.code === "ARCHIVE_MISSING_FILES") {
+        state.archiveMissingScan = error.data;
+        render();
+      }
+      alert(describeArchiveIntegrityError(error));
+    }
   });
 
   document.querySelector("#downloadArchiveButton")?.addEventListener("click", async () => {

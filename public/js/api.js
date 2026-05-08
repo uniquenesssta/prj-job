@@ -9,6 +9,11 @@ async function api(url, options = {}) {
   const response = await fetch(url, init);
   const type = response.headers.get("content-type") || "";
   const data = type.includes("application/json") ? await response.json() : await response.text();
-  if (!response.ok) throw new Error(data.error || "请求失败");
+  if (!response.ok) {
+    const error = new Error(data.error || "请求失败");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
   return data;
 }

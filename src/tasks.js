@@ -1,4 +1,7 @@
+const fs = require("fs");
+const path = require("path");
 const { URL } = require("url");
+const { ARCHIVE_DIR } = require("./config");
 const { readJson, sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
 const { createId, enrichTask, readComments, readDb } = require("./storage");
@@ -67,7 +70,7 @@ function handleGetTasks(req, res) {
       return includeArchived;
     })
     .sort((a, b) => String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")))
-    .map((task) => enrichTask(db, task, comments));
+    .map((task) => withArchivePackageStatus(enrichTask(db, task, comments)));
   sendJson(res, 200, { tasks });
 }
 
@@ -274,6 +277,17 @@ async function handleRestoreTask(req, res, taskId) {
   });
   broadcast("tasks-changed", { taskId: task.id });
   sendJson(res, 200, { task: enrichTask(db, task) });
+}
+
+function withArchivePackageStatus(task) {
+  if (!task?.archivedAt || !task.archiveZipPath) return task;
+  const zipPath = path.resolve(task.archiveZipPath);
+  const archiveRoot = path.resolve(ARCHIVE_DIR);
+  const validPath = zipPath === archiveRoot || zipPath.startsWith(`${archiveRoot}${path.sep}`);
+  return {
+    ...task,
+    archivePackageMissing: !validPath || !fs.existsSync(zipPath),
+  };
 }
 
 function pickTaskSnapshot(task, fields) {

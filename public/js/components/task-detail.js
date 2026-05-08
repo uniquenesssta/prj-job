@@ -54,10 +54,18 @@ function renderArchiveControls(task) {
   const deleteButton = !task.archivedAt && userHasPermission("tasks.delete") ? '<button class="button danger" id="deleteTaskButton" type="button">删除任务</button>' : "";
   if (task.archivedAt) {
     if (!userHasPermission("archives.manage")) return "";
+    const downloadButton = task.archivePackageMissing
+      ? '<span class="signal danger">归档包本地文件缺失</span>'
+      : '<button class="button" id="downloadArchiveButton" type="button">下载归档包</button>';
+    const deleteArchivedButton = task.archivePackageMissing && userHasPermission("tasks.delete")
+      ? '<button class="button danger" id="deleteTaskButton" type="button">删除归档任务</button>'
+      : "";
     return `
       <div class="archive-actions">
         <span>已归档：${formatDateTime(task.archivedAt)}</span>
+        ${downloadButton}
         <button class="button secondary" id="restoreTaskButton" type="button">恢复显示</button>
+        ${deleteArchivedButton}
       </div>
     `;
   }
