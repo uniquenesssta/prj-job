@@ -1,14 +1,16 @@
 const { getDatabase } = require("../database");
 
 function listDepartments(db = getDatabase()) {
-  return db.prepare("SELECT * FROM departments ORDER BY disabledAt, name, rowid").all();
+  return db.prepare("SELECT * FROM departments ORDER BY disabledAt, parentId, name, rowid").all();
 }
 
 function createDepartment(department, db = getDatabase()) {
   db.prepare(`
     INSERT INTO departments (
-      id, name, description, defaultRole, customRoleName, permissionPreset, disabledAt, deletedAt, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, name, description, defaultRole, customRoleName, permissionPreset,
+      parentId, managerId, allowViewOwnDepartmentTasks, allowViewChildDepartmentTasks,
+      disabledAt, deletedAt, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     department.id,
     department.name,
@@ -16,6 +18,10 @@ function createDepartment(department, db = getDatabase()) {
     department.defaultRole || "designer",
     department.customRoleName || "",
     department.permissionPreset || "{}",
+    department.parentId || "",
+    department.managerId || "",
+    department.allowViewOwnDepartmentTasks ? 1 : 0,
+    department.allowViewChildDepartmentTasks ? 1 : 0,
     department.disabledAt || "",
     department.deletedAt || "",
     department.createdAt,
@@ -31,6 +37,10 @@ function updateDepartment(department, db = getDatabase()) {
         defaultRole = ?,
         customRoleName = ?,
         permissionPreset = ?,
+        parentId = ?,
+        managerId = ?,
+        allowViewOwnDepartmentTasks = ?,
+        allowViewChildDepartmentTasks = ?,
         disabledAt = ?,
         updatedAt = ?
     WHERE id = ?
@@ -40,6 +50,10 @@ function updateDepartment(department, db = getDatabase()) {
     department.defaultRole || "designer",
     department.customRoleName || "",
     department.permissionPreset || "{}",
+    department.parentId || "",
+    department.managerId || "",
+    department.allowViewOwnDepartmentTasks ? 1 : 0,
+    department.allowViewChildDepartmentTasks ? 1 : 0,
     department.disabledAt || "",
     department.updatedAt,
     department.id
