@@ -1,0 +1,83 @@
+.account-bulk-actions {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin: 12px 0 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(245, 247, 250, 0.72);
+}
+
+.account-bulk-actions label {
+  min-width: 0;
+}
+
+.account-bulk-actions select {
+  min-height: 36px;
+}
+
+.account-bulk-check > div {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-bulk-check input,
+.account-bulk-row-check input {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  padding: 0;
+}
+
+.account-bulk-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.account-bulk-buttons .button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.account-row-with-select {
+  position: relative;
+  padding-left: 42px;
+}
+
+.account-bulk-row-check {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  gap: 0;
+  z-index: 1;
+}
+
+@media (max-width: 1100px) {
+  .account-bulk-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .account-bulk-buttons {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .account-bulk-actions {
+    grid-template-columns: 1fr;
+  }
+}
