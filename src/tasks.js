@@ -142,6 +142,10 @@ async function handleUpdateTask(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能修改，请先恢复显示");
+    return;
+  }
   if (!canAccessTask(user, task)) {
     sendError(res, 403, "无权修改该任务");
     return;
@@ -250,7 +254,7 @@ async function handleRestoreTask(req, res, taskId) {
     return;
   }
   if (!canRestoreTask(user, task)) {
-    sendError(res, 403, "只有管理员可以恢复归档任务");
+    sendError(res, 403, "只有管理员可以恢复已归档任务");
     return;
   }
   task.archivedAt = "";

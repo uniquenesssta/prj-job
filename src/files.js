@@ -26,6 +26,10 @@ async function handleUpload(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能上传文件，请先恢复显示");
+    return;
+  }
   if (!canUploadToTask(user, task)) {
     sendError(res, 403, "无权上传到该任务");
     return;
@@ -40,6 +44,10 @@ async function handleUpload(req, res, taskId) {
     const nextTask = nextDb.tasks.find((item) => item.id === taskId);
     if (!nextTask) {
       sendError(res, 404, "任务不存在");
+      return;
+    }
+    if (nextTask.archivedAt) {
+      sendError(res, 400, "归档任务不能上传文件，请先恢复显示");
       return;
     }
     if (!canUploadToTask(user, nextTask)) {
@@ -213,6 +221,10 @@ function handleDeleteFile(req, res, fileId) {
     return;
   }
   const task = db.tasks.find((item) => item.id === file.taskId);
+  if (task?.archivedAt) {
+    sendError(res, 400, "归档任务不能删除附件，请先恢复显示");
+    return;
+  }
   if (!task || !canDownloadTaskFile(user, task, file) || !canDeleteUploadedFile(user, file)) {
     sendError(res, 403, "无权删除该文件");
     return;

@@ -34,6 +34,10 @@ async function handleCreateRemark(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能新增备注，请先恢复显示");
+    return;
+  }
   if (!canWritePersonalRemark(user, task)) {
     sendError(res, 403, "只有设计师本人的个人任务可以新增备注记录");
     return;
@@ -50,6 +54,10 @@ async function handleCreateRemark(req, res, taskId) {
     const nextTask = nextDb.tasks.find((item) => item.id === taskId);
     if (!nextTask) {
       sendError(res, 404, "任务不存在");
+      return;
+    }
+    if (nextTask.archivedAt) {
+      sendError(res, 400, "归档任务不能新增备注，请先恢复显示");
       return;
     }
     if (!canWritePersonalRemark(user, nextTask)) {

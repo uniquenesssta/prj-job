@@ -103,7 +103,15 @@ function renderTaskCard(task) {
 }
 
 function renderTaskCardActions(task) {
-  if (!userHasPermission("tasks.delete") || task.archivedAt) return "";
+  if (task.archivedAt) {
+    if (!userHasPermission("archives.manage")) return "";
+    return `
+      <div class="task-card-actions">
+        <button class="button compact-button" type="button" data-download-archive-task-id="${task.id}">下载归档包</button>
+      </div>
+    `;
+  }
+  if (!userHasPermission("tasks.delete")) return "";
   return `
     <div class="task-card-actions">
       <button class="button danger compact-button" type="button" data-delete-task-id="${task.id}">删除</button>
@@ -114,7 +122,9 @@ function renderTaskCardActions(task) {
 function renderTaskSignals(task) {
   const messages = taskMessageCount(task);
   const files = (task.attachments || []).length;
-  const dueLabel = task.status === "done"
+  const dueLabel = task.archivedAt
+    ? "已归档"
+    : task.status === "done"
     ? "已完成"
     : isOverdue(task)
     ? "已超时"
@@ -123,7 +133,7 @@ function renderTaskSignals(task) {
     : task.dueDate
     ? `截止 ${task.dueDate}`
     : "未设截止";
-  const dueTone = task.status === "done" ? "done" : isOverdue(task) ? "danger" : isDueToday(task) ? "warning" : "neutral";
+  const dueTone = task.archivedAt ? "done" : task.status === "done" ? "done" : isOverdue(task) ? "danger" : isDueToday(task) ? "warning" : "neutral";
   return `
     <div class="task-signals">
       <span class="signal ${dueTone}">${dueLabel}</span>

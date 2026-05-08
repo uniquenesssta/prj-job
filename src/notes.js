@@ -45,6 +45,10 @@ async function handlePutPersonalNote(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能新增个人备注，请先恢复显示");
+    return;
+  }
   if (!canWritePersonalNote(user, task)) {
     sendError(res, 403, "无权保存该任务的个人备注");
     return;
@@ -97,6 +101,10 @@ async function handleMultipartPersonalNote(req, res, user, taskId) {
     const task = db.tasks.find((item) => item.id === taskId);
     if (!task) {
       sendError(res, 404, "任务不存在");
+      return;
+    }
+    if (task.archivedAt) {
+      sendError(res, 400, "归档任务不能新增个人备注，请先恢复显示");
       return;
     }
     if (!canWritePersonalNote(user, task)) {
@@ -166,6 +174,10 @@ function handleDeletePersonalNote(req, res, taskId, noteId) {
   const task = db.tasks.find((item) => item.id === taskId);
   if (!task) {
     sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能删除个人备注，请先恢复显示");
     return;
   }
   if (!canAccessTask(user, task)) {

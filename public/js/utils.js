@@ -45,12 +45,14 @@ function taskMessageCount(task) {
 }
 
 function canEditBrief(task) {
+  if (task.archivedAt) return false;
   if (task.visibility === "private" && task.creatorId === state.user.id && task.assigneeId === state.user.id) return true;
   return userHasPermission("tasks.edit_brief")
     && (userHasPermission("tasks.read_all") || task.creatorId === state.user.id);
 }
 
 function canOperateTask(task) {
+  if (!task || task.archivedAt) return false;
   return userHasPermission("tasks.read_all") || task.creatorId === state.user.id || task.assigneeId === state.user.id;
 }
 

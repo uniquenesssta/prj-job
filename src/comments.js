@@ -40,6 +40,10 @@ async function handleCreateComment(req, res, taskId) {
     sendError(res, 404, "任务不存在");
     return;
   }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能新增留言，请先恢复显示");
+    return;
+  }
   if (!canCommentTask(user, task)) {
     sendError(res, 403, "无权留言该任务");
     return;
@@ -86,6 +90,10 @@ function handleDeleteComment(req, res, taskId, commentId) {
   const task = db.tasks.find((item) => item.id === taskId);
   if (!task) {
     sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (task.archivedAt) {
+    sendError(res, 400, "归档任务不能删除留言，请先恢复显示");
     return;
   }
   if (!canAccessTask(user, task)) {

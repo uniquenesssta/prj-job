@@ -1,6 +1,6 @@
 const { URL } = require("url");
 const { sendError } = require("./http-utils");
-const { handleArchiveDoneTasks, handleArchiveOneTask } = require("./archive");
+const { handleArchiveDoneTasks, handleArchiveOneTask, handleDownloadTaskArchive } = require("./archive");
 const {
   handleCreateUser,
   handleLogin,
@@ -67,6 +67,8 @@ function route(req, res) {
       if (req.method === "POST" && pathname === "/api/tasks") return handleCreateTask(req, res);
       const taskArchive = pathname.match(/^\/api\/tasks\/([^/]+)\/archive$/);
       if (req.method === "POST" && taskArchive) return handleArchiveOneTask(req, res, taskArchive[1]);
+      const taskArchiveDownload = pathname.match(/^\/api\/tasks\/([^/]+)\/archive\/download$/);
+      if (req.method === "GET" && taskArchiveDownload) return handleDownloadTaskArchive(req, res, taskArchiveDownload[1]);
       const taskRestore = pathname.match(/^\/api\/tasks\/([^/]+)\/restore$/);
       if (req.method === "POST" && taskRestore) return handleRestoreTask(req, res, taskRestore[1]);
       const taskUpdate = pathname.match(/^\/api\/tasks\/([^/]+)$/);

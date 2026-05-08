@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const yazl = require("yazl");
 const { ARCHIVE_DIR, CONFIG } = require("./config");
 const { sendError, sendJson } = require("./http-utils");
 const { broadcast } = require("./events");
@@ -8,6 +9,7 @@ const { requireUser } = require("./auth");
 const { canArchiveTask, hasPermission } = require("./permissions");
 const { insertArchiveRecord, insertOperationLog } = require("./repositories/system-repo");
 const {
+  contentDispositionHeader,
   formatArchiveStamp,
   formatDate,
   sanitizeFilename,
@@ -16,37 +18,39 @@ const {
   uniquePath,
 } = require("./files");
 
-const crcTable = Array.from({ length: 256 }, (_, index) => {
-  let value = index;
-  for (let bit = 0; bit < 8; bit += 1) {
-    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-  }
-  return value >>> 0;
-});
-
-function handleArchiveDoneTasks(req, res) {
+async function handleArchiveDoneTasks(req, res) {
   const user = requireUser(req, res);
   if (!user) return;
-  const db = readDb();
-  const tasks = db.tasks.filter((task) => canArchiveTask(user, task));
   if (!hasPermission(user, "archives.manage")) {
     sendError(res, 403, "只有管理员可以归档");
     return;
   }
+
+  const db = readDb();
+  const tasks = db.tasks.filter((task) => canArchiveTask(user, task));
   if (!tasks.length) {
     sendError(res, 400, "没有可归档的已完成任务");
     return;
   }
+
   try {
-    const result = createTaskArchive(db, tasks);
-    markTasksArchived(db, tasks, result, user);
-    sendJson(res, 200, result);
+    const archives = [];
+    for (const task of tasks) {
+      const result = await createTaskArchive(db, [task]);
+      markTasksArchived(db, [task], result, user);
+      archives.push(result);
+    }
+    sendJson(res, 200, {
+      ok: true,
+      archivedTasks: archives.length,
+      archives,
+    });
   } catch (error) {
     sendError(res, 500, `归档失败：${error.message}`);
   }
 }
 
-function handleArchiveOneTask(req, res, taskId) {
+async function handleArchiveOneTask(req, res, taskId) {
   const user = requireUser(req, res);
   if (!user) return;
   const db = readDb();
@@ -72,12 +76,53 @@ function handleArchiveOneTask(req, res, taskId) {
     return;
   }
   try {
-    const result = createTaskArchive(db, [task]);
+    const result = await createTaskArchive(db, [task]);
     markTasksArchived(db, [task], result, user);
     sendJson(res, 200, result);
   } catch (error) {
     sendError(res, 500, `归档失败：${error.message}`);
   }
+}
+
+function handleDownloadTaskArchive(req, res, taskId) {
+  const user = requireUser(req, res);
+  if (!user) return;
+  if (!hasPermission(user, "archives.manage")) {
+    sendError(res, 403, "只有管理员可以下载归档包");
+    return;
+  }
+
+  const db = readDb();
+  const task = db.tasks.find((item) => item.id === taskId);
+  if (!task) {
+    sendError(res, 404, "任务不存在");
+    return;
+  }
+  if (!task.archivedAt || !task.archiveZipPath) {
+    sendError(res, 400, "该任务当前没有可下载的归档包");
+    return;
+  }
+
+  const zipPath = path.resolve(task.archiveZipPath);
+  const archiveRoot = path.resolve(ARCHIVE_DIR);
+  if (!zipPath.startsWith(`${archiveRoot}${path.sep}`) && zipPath !== archiveRoot) {
+    sendError(res, 400, "归档路径不合法");
+    return;
+  }
+  if (!fs.existsSync(zipPath)) {
+    sendError(res, 404, "归档包已丢失，请检查服务器归档目录");
+    return;
+  }
+
+  const filename = `${sanitizeFilename(task.title || task.id)}-归档.zip`;
+  res.writeHead(200, {
+    "Content-Type": "application/zip",
+    "Content-Length": fs.statSync(zipPath).size,
+    "Content-Disposition": contentDispositionHeader("attachment", filename),
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  fs.createReadStream(zipPath).pipe(res);
 }
 
 function markTasksArchived(db, tasks, archiveResult, user) {
@@ -115,68 +160,93 @@ function markTasksArchived(db, tasks, archiveResult, user) {
   broadcast("tasks-changed", {});
 }
 
-function createTaskArchive(db, tasks) {
+async function createTaskArchive(db, tasks) {
+  if (!Array.isArray(tasks) || tasks.length !== 1) {
+    throw new Error("当前归档策略为项目级归档，每次只能打包一个任务");
+  }
+
   const comments = readComments();
   const stamp = formatArchiveStamp();
-  const archiveName = renderRule(CONFIG.archiveNameRule || "任务归档-{date}-{time}", {
+  const task = tasks[0];
+  const archiveName = renderRule(CONFIG.archiveNameRule || "任务归档-{date}-{time}-{taskId}", {
     date: formatDate(),
     time: stamp.split("-").pop(),
     count: tasks.length,
+    taskId: task.id,
+    title: task.title,
+    wechat: task.wechat || "无微信",
+    orderNo: task.orderNo || "无订单",
   });
   const archivePath = uniqueDirectory(path.join(ARCHIVE_DIR, sanitizeFolderPart(archiveName, "任务归档")));
   const zipPath = `${archivePath}.zip`;
 
   fs.mkdirSync(archivePath, { recursive: true });
   fs.mkdirSync(path.join(archivePath, "tasks"), { recursive: true });
-  writeJsonFile(path.join(archivePath, "任务列表.json"), tasks.map((task) => {
-    const enriched = enrichTask(db, task, comments);
+  writeJsonFile(path.join(archivePath, "任务列表.json"), tasks.map((item) => {
+    const enriched = enrichTask(db, item, comments);
     return { ...enriched, comments: undefined };
   }));
   writeJsonFile(path.join(archivePath, "账号列表.json"), db.users.map(publicUser));
 
-  for (const task of tasks) {
-    const enriched = enrichTask(db, task, comments);
-    const taskDir = path.join(archivePath, "tasks", archiveTaskFolderNameV2(db, task));
-    fs.mkdirSync(taskDir, { recursive: true });
-    fs.mkdirSync(path.join(taskDir, "files"), { recursive: true });
-    fs.mkdirSync(path.join(taskDir, "remark-images"), { recursive: true });
-    writeJsonFile(path.join(taskDir, "任务信息.json"), { ...enriched, comments: undefined });
-    writeCommentTxt(path.join(taskDir, "留言.txt"), enriched.comments || []);
-    writeRemarkTxt(path.join(taskDir, "个人备注.txt"), enriched.remarkRecords || []);
+  const taskDir = uniqueDirectory(path.join(archivePath, "tasks", archiveTaskFolderNameV2(db, task)));
+  const enriched = enrichTask(db, task, comments);
+  fs.mkdirSync(taskDir, { recursive: true });
+  fs.mkdirSync(path.join(taskDir, "files"), { recursive: true });
+  fs.mkdirSync(path.join(taskDir, "remark-images"), { recursive: true });
+  writeJsonFile(path.join(taskDir, "任务信息.json"), { ...enriched, comments: undefined });
+  writeCommentTxt(path.join(taskDir, "留言.txt"), enriched.comments || []);
+  writeRemarkTxt(path.join(taskDir, "个人备注.txt"), enriched.remarkRecords || []);
 
-    for (const file of enriched.attachments || []) {
+  for (const file of enriched.attachments || []) {
+    const source = storedFilePath(file);
+    if (!fs.existsSync(source)) continue;
+    const target = path.join(taskDir, "files", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
+    fs.copyFileSync(source, uniquePath(target));
+  }
+  for (const remark of enriched.remarkRecords || []) {
+    for (const file of remark.images || []) {
       const source = storedFilePath(file);
       if (!fs.existsSync(source)) continue;
-      const target = path.join(taskDir, "files", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
+      const target = path.join(taskDir, "remark-images", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
       fs.copyFileSync(source, uniquePath(target));
-    }
-    for (const remark of enriched.remarkRecords || []) {
-      for (const file of remark.images || []) {
-        const source = storedFilePath(file);
-        if (!fs.existsSync(source)) continue;
-        const target = path.join(taskDir, "remark-images", `${sanitizeFolderPart(file.uploadedByName, "上传者")}-${sanitizeFilename(file.originalName)}`);
-        fs.copyFileSync(source, uniquePath(target));
-      }
     }
   }
 
-  createZipFromDirectory(archivePath, zipPath, path.dirname(archivePath));
+  writeArchiveManifest(path.join(archivePath, "manifest.json"), {
+    archiveVersion: 1,
+    archiveType: "task-project",
+    restoreMode: "future-import-or-rehydrate",
+    taskId: task.id,
+    archivedAt: new Date().toISOString(),
+    taskSnapshot: enriched,
+    files: enriched.attachments || [],
+    comments: enriched.comments || [],
+    remarkRecords: enriched.remarkRecords || [],
+  });
+
+  await createZipFromDirectory(archivePath, zipPath, path.dirname(archivePath));
   return {
     ok: true,
     archivedTasks: tasks.length,
+    taskId: task.id,
     archivePath,
     zipPath,
   };
 }
 
+function writeArchiveManifest(filePath, data) {
+  writeJsonFile(filePath, data);
+}
+
 function archiveTaskFolderNameV2(db, task) {
   const assignee = db.users.find((item) => item.id === task.assigneeId);
-  const name = renderRule(CONFIG.archiveTaskNameRule || "{title}-{wechat}_{orderNo}_{designer}", {
+  const name = renderRule(CONFIG.archiveTaskNameRule || "{title}-{wechat}_{orderNo}_{designer}-{taskId}", {
     title: task.title,
     wechat: task.wechat || "无微信",
     orderNo: task.orderNo || "无订单",
     designer: assignee?.name || "未分配",
     date: formatDate(),
+    taskId: task.id,
   });
   return sanitizeFolderPart(name, "任务");
 }
@@ -224,75 +294,19 @@ function uniqueDirectory(dirPath) {
 
 function createZipFromDirectory(sourceDir, zipPath, baseDir) {
   const files = listFilesRecursive(sourceDir);
-  const fd = fs.openSync(zipPath, "w");
-  const central = [];
-  let offset = 0;
-
-  try {
-    for (const filePath of files) {
+  return new Promise((resolve, reject) => {
+    const zipfile = new yazl.ZipFile();
+    const output = fs.createWriteStream(zipPath);
+    output.on("close", resolve);
+    output.on("error", reject);
+    zipfile.outputStream.on("error", reject);
+    zipfile.outputStream.pipe(output);
+    files.forEach((filePath) => {
       const name = path.relative(baseDir, filePath).replace(/\\/g, "/");
-      const nameBuffer = Buffer.from(name, "utf8");
-      const stat = fs.statSync(filePath);
-      if (stat.size > 0xffffffff) throw new Error(`文件过大，暂不支持归档：${name}`);
-      const info = computeCrcAndSize(filePath);
-      const local = Buffer.alloc(30);
-      local.writeUInt32LE(0x04034b50, 0);
-      local.writeUInt16LE(20, 4);
-      local.writeUInt16LE(0x0800, 6);
-      local.writeUInt16LE(0, 8);
-      local.writeUInt16LE(0, 10);
-      local.writeUInt16LE(0, 12);
-      local.writeUInt32LE(info.crc, 14);
-      local.writeUInt32LE(info.size, 18);
-      local.writeUInt32LE(info.size, 22);
-      local.writeUInt16LE(nameBuffer.length, 26);
-      local.writeUInt16LE(0, 28);
-      fs.writeSync(fd, local);
-      fs.writeSync(fd, nameBuffer);
-      copyFileToFd(filePath, fd);
-
-      central.push({ nameBuffer, crc: info.crc, size: info.size, offset });
-      offset += local.length + nameBuffer.length + info.size;
-    }
-
-    const centralStart = offset;
-    for (const item of central) {
-      const header = Buffer.alloc(46);
-      header.writeUInt32LE(0x02014b50, 0);
-      header.writeUInt16LE(20, 4);
-      header.writeUInt16LE(20, 6);
-      header.writeUInt16LE(0x0800, 8);
-      header.writeUInt16LE(0, 10);
-      header.writeUInt16LE(0, 12);
-      header.writeUInt16LE(0, 14);
-      header.writeUInt32LE(item.crc, 16);
-      header.writeUInt32LE(item.size, 20);
-      header.writeUInt32LE(item.size, 24);
-      header.writeUInt16LE(item.nameBuffer.length, 28);
-      header.writeUInt16LE(0, 30);
-      header.writeUInt16LE(0, 32);
-      header.writeUInt16LE(0, 34);
-      header.writeUInt16LE(0, 36);
-      header.writeUInt32LE(0, 38);
-      header.writeUInt32LE(item.offset, 42);
-      fs.writeSync(fd, header);
-      fs.writeSync(fd, item.nameBuffer);
-      offset += header.length + item.nameBuffer.length;
-    }
-
-    const end = Buffer.alloc(22);
-    end.writeUInt32LE(0x06054b50, 0);
-    end.writeUInt16LE(0, 4);
-    end.writeUInt16LE(0, 6);
-    end.writeUInt16LE(central.length, 8);
-    end.writeUInt16LE(central.length, 10);
-    end.writeUInt32LE(offset - centralStart, 12);
-    end.writeUInt32LE(centralStart, 16);
-    end.writeUInt16LE(0, 20);
-    fs.writeSync(fd, end);
-  } finally {
-    fs.closeSync(fd);
-  }
+      zipfile.addFile(filePath, name);
+    });
+    zipfile.end();
+  });
 }
 
 function listFilesRecursive(dir) {
@@ -305,41 +319,9 @@ function listFilesRecursive(dir) {
   return result;
 }
 
-function computeCrcAndSize(filePath) {
-  const fd = fs.openSync(filePath, "r");
-  const buffer = Buffer.alloc(1024 * 1024);
-  let crc = 0xffffffff;
-  let size = 0;
-  try {
-    while (true) {
-      const bytes = fs.readSync(fd, buffer, 0, buffer.length, null);
-      if (!bytes) break;
-      size += bytes;
-      for (let index = 0; index < bytes; index += 1) {
-        crc = crcTable[(crc ^ buffer[index]) & 0xff] ^ (crc >>> 8);
-      }
-    }
-  } finally {
-    fs.closeSync(fd);
-  }
-  return { crc: (crc ^ 0xffffffff) >>> 0, size };
-}
-
-function copyFileToFd(filePath, outFd) {
-  const inFd = fs.openSync(filePath, "r");
-  const buffer = Buffer.alloc(1024 * 1024);
-  try {
-    while (true) {
-      const bytes = fs.readSync(inFd, buffer, 0, buffer.length, null);
-      if (!bytes) break;
-      fs.writeSync(outFd, buffer, 0, bytes);
-    }
-  } finally {
-    fs.closeSync(inFd);
-  }
-}
-
 module.exports = {
+  createTaskArchive,
   handleArchiveDoneTasks,
   handleArchiveOneTask,
+  handleDownloadTaskArchive,
 };

@@ -95,6 +95,13 @@ function bindStaticEvents() {
 function bindTaskPageEvents() {
   document.querySelector("#refreshTasks")?.addEventListener("click", reloadTasks);
   document.querySelector("#taskList")?.addEventListener("click", async (event) => {
+    const archiveDownloadButton = event.target.closest("button[data-download-archive-task-id]");
+    if (archiveDownloadButton) {
+      const taskId = archiveDownloadButton.dataset.downloadArchiveTaskId;
+      const task = state.tasks.find((item) => item.id === taskId);
+      await downloadArchive(taskId, task?.title || "archive");
+      return;
+    }
     const deleteButton = event.target.closest("button[data-delete-task-id]");
     if (deleteButton) {
       await deleteTask(deleteButton.dataset.deleteTaskId);
@@ -109,6 +116,41 @@ function bindTaskPageEvents() {
     render();
   });
   bindDetailEvents();
+}
+
+function bindArchiveButton() {
+  const button = document.querySelector("#archiveButton");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const message = document.querySelector("#archiveMessage");
+    if (!confirm("确认将所有已完成且未归档的任务按项目分别打包归档？")) return;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "归档中";
+    if (message) {
+      message.style.color = "";
+      message.textContent = "正在按项目生成归档包...";
+    }
+    try {
+      const data = await api("/api/archive", { method: "POST" });
+      if (message) {
+        message.style.color = "#2f9563";
+        message.textContent = `已归档 ${data.archivedTasks || 0} 个项目。`;
+      }
+      await loadData();
+      render();
+    } catch (error) {
+      if (message) {
+        message.style.color = "#cf4d40";
+        message.textContent = error.message;
+      } else {
+        alert(error.message);
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  });
 }
 
 function bindDetailEvents() {
@@ -149,6 +191,11 @@ function bindDetailEvents() {
     state.selectedTaskId = null;
     await loadData();
     render();
+  });
+
+  document.querySelector("#downloadArchiveButton")?.addEventListener("click", async () => {
+    const task = state.tasks.find((item) => item.id === state.selectedTaskId);
+    await downloadArchive(state.selectedTaskId, task?.title || "archive");
   });
 
   document.querySelector("#restoreTaskButton")?.addEventListener("click", async () => {
@@ -238,10 +285,30 @@ async function downloadFile(fileId, filename) {
   }
 
   const blob = await response.blob();
+  downloadBlob(blob, filename || getFilenameFromDisposition(response.headers.get("Content-Disposition")) || "download");
+}
+
+async function downloadArchive(taskId, filename) {
+  const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/archive/download`, {
+    method: "GET",
+    credentials: "same-origin",
+  });
+
+  if (!response.ok) {
+    const message = await readDownloadError(response);
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const fallback = `${sanitizeDownloadName(filename || "archive")}-归档.zip`;
+  downloadBlob(blob, getFilenameFromDisposition(response.headers.get("Content-Disposition")) || fallback);
+}
+
+function downloadBlob(blob, filename) {
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
-  link.download = filename || getFilenameFromDisposition(response.headers.get("Content-Disposition")) || "download";
+  link.download = filename || "download";
   link.style.display = "none";
   document.body.appendChild(link);
   link.click();
@@ -275,4 +342,8 @@ function getFilenameFromDisposition(value) {
   }
   const fallbackMatch = header.match(/filename="?([^";]+)"?/i);
   return fallbackMatch ? fallbackMatch[1] : "";
+}
+
+function sanitizeDownloadName(value) {
+  return String(value || "download").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").slice(0, 120) || "download";
 }

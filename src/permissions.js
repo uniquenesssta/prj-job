@@ -26,7 +26,7 @@ function canAccessTask(user, task) {
 }
 
 function canOperateTask(user, task) {
-  if (!user || !task) return false;
+  if (!user || !task || task.archivedAt) return false;
   if (hasPermission(user, "tasks.read_all")) return true;
   return task.creatorId === user.id || task.assigneeId === user.id;
 }
@@ -40,13 +40,13 @@ function canCreatePersonalTask(user) {
 }
 
 function canEditTaskBrief(user, task) {
-  if (!user || !task) return false;
+  if (!user || !task || task.archivedAt) return false;
   if (task.visibility === "private" && task.creatorId === user.id && task.assigneeId === user.id) return true;
   return hasPermission(user, "tasks.edit_brief") && canOperateTask(user, task);
 }
 
 function canEditTaskField(user, task, field) {
-  if (!user || !task || !field) return false;
+  if (!user || !task || !field || task.archivedAt) return false;
   if (task.visibility === "private" && task.creatorId === user.id && task.assigneeId === user.id) return true;
   const permissionCode = taskFieldPermissionCode(field);
   return Boolean(permissionCode) && hasPermission(user, permissionCode) && canOperateTask(user, task);
@@ -72,12 +72,12 @@ function editableTaskFields(user, task) {
 }
 
 function canUpdateTaskStatus(user, task) {
-  if (!user || !task) return false;
+  if (!user || !task || task.archivedAt) return false;
   return hasPermission(user, "tasks.update_status") && canOperateTask(user, task);
 }
 
 function canChangeTaskStatus(user, task, nextStatus) {
-  if (!user || !task || !nextStatus) return false;
+  if (!user || !task || !nextStatus || task.archivedAt) return false;
   if (task.status === nextStatus) return canUpdateTaskStatus(user, task);
   const permissionCode = statusTransitionPermissionCode(task.status, nextStatus);
   return Boolean(permissionCode) && hasPermission(user, permissionCode) && canOperateTask(user, task);
@@ -94,8 +94,6 @@ function canUploadToTask(user, task) {
 }
 
 function canDownloadTaskFile(user, task, file) {
-  // 下载附件属于“查看任务内容”的延伸能力。
-  // 之前使用 canOperateTask，会导致拥有“查看其他设计师/客服”权限的人能看到任务却不能下载附件。
   return Boolean(file && task && file.taskId === task.id && hasPermission(user, "files.download") && canAccessTask(user, task));
 }
 
@@ -110,7 +108,7 @@ function canCommentTask(user, task) {
 
 function canReadPersonalNote(user, task, note) {
   if (!user || !task || !note) return false;
-  return canOperateTask(user, task) && note.userId === user.id;
+  return canAccessTask(user, task) && note.userId === user.id;
 }
 
 function canWritePersonalNote(user, task) {
@@ -118,7 +116,7 @@ function canWritePersonalNote(user, task) {
 }
 
 function canWritePersonalRemark(user, task) {
-  if (!user || !task) return false;
+  if (!user || !task || task.archivedAt) return false;
   return hasPermission(user, "notes.write") && task.visibility === "private" && task.creatorId === user.id && task.assigneeId === user.id;
 }
 
@@ -135,11 +133,11 @@ function canManagePermissions(user) {
 }
 
 function canArchiveTask(user, task) {
-  return hasPermission(user, "archives.manage") && task?.status === "done" && !task.archivedAt;
+  return hasPermission(user, "archives.manage") && task?.status === "done" && !task.archivedAt && !task.deletedAt;
 }
 
 function canRestoreTask(user, task) {
-  return hasPermission(user, "archives.manage") && Boolean(task);
+  return hasPermission(user, "archives.manage") && Boolean(task) && Boolean(task.archivedAt) && !task.deletedAt;
 }
 
 function canDeleteTask(user, task) {

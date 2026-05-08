@@ -9,7 +9,7 @@ function renderArchivedPage() {
           <h2>归档项目</h2>
         </div>
         <div class="section-actions">
-          <button class="button" id="archiveButton" type="button">归档全部已完成</button>
+          <button class="button" id="archiveButton" type="button">按项目归档全部已完成</button>
           <button class="button secondary" id="refreshTasks" type="button">刷新</button>
         </div>
       </div>
