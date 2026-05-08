@@ -24,8 +24,14 @@ async function handleCreateDepartment(req, res) {
   }
   const body = await readJson(req);
   const name = String(body.name || "").trim();
+  const defaultRole = normalizeRole(body.defaultRole);
+  const customRoleName = normalizeCustomRoleName(defaultRole, body.customRoleName);
   if (!name) {
     sendError(res, 400, "请填写部门名称");
+    return;
+  }
+  if (defaultRole === "custom" && !customRoleName) {
+    sendError(res, 400, "请选择自定义时，请填写自定义角色名称");
     return;
   }
   const now = new Date().toISOString();
@@ -33,7 +39,8 @@ async function handleCreateDepartment(req, res) {
     id: createId("dept"),
     name,
     description: String(body.description || "").trim(),
-    defaultRole: normalizeRole(body.defaultRole),
+    defaultRole,
+    customRoleName,
     permissionPreset: normalizePermissionPreset(body.permissionPreset),
     disabledAt: body.disabled === true || body.disabled === "true" ? now : "",
     deletedAt: "",
@@ -48,6 +55,7 @@ async function handleCreateDepartment(req, res) {
     targetType: "department",
     targetId: department.id,
     targetTitle: department.name,
+    detail: JSON.stringify({ defaultRole, customRoleName }),
   });
   sendJson(res, 201, { department });
 }
@@ -66,17 +74,26 @@ async function handleUpdateDepartment(req, res, departmentId) {
   }
   const body = await readJson(req);
   const now = new Date().toISOString();
+  const defaultRole = body.defaultRole !== undefined ? normalizeRole(body.defaultRole) : current.defaultRole;
+  const customRoleName = body.customRoleName !== undefined
+    ? normalizeCustomRoleName(defaultRole, body.customRoleName)
+    : normalizeCustomRoleName(defaultRole, current.customRoleName);
   const next = {
     ...current,
     name: body.name !== undefined ? String(body.name).trim() : current.name,
     description: body.description !== undefined ? String(body.description).trim() : current.description,
-    defaultRole: body.defaultRole !== undefined ? normalizeRole(body.defaultRole) : current.defaultRole,
+    defaultRole,
+    customRoleName,
     permissionPreset: body.permissionPreset !== undefined ? normalizePermissionPreset(body.permissionPreset) : current.permissionPreset,
     disabledAt: body.disabled !== undefined ? (body.disabled === true || body.disabled === "true" ? current.disabledAt || now : "") : current.disabledAt,
     updatedAt: now,
   };
   if (!next.name) {
     sendError(res, 400, "部门名称不能为空");
+    return;
+  }
+  if (next.defaultRole === "custom" && !next.customRoleName) {
+    sendError(res, 400, "请选择自定义时，请填写自定义角色名称");
     return;
   }
   updateDepartment(next);
@@ -87,12 +104,18 @@ async function handleUpdateDepartment(req, res, departmentId) {
     targetType: "department",
     targetId: next.id,
     targetTitle: next.name,
+    detail: JSON.stringify({ defaultRole: next.defaultRole, customRoleName: next.customRoleName }),
   });
   sendJson(res, 200, { department: next });
 }
 
 function normalizeRole(value) {
   return ["owner", "service", "designer", "custom"].includes(value) ? value : "designer";
+}
+
+function normalizeCustomRoleName(defaultRole, value) {
+  if (defaultRole !== "custom") return "";
+  return String(value || "").trim().slice(0, 24);
 }
 
 function normalizePermissionPreset(value) {
