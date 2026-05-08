@@ -30,9 +30,10 @@ function readBody(req, limit = Infinity) {
 }
 
 async function readJson(req) {
+  if (req.__jsonBody !== undefined) return req.__jsonBody;
   const body = await readBody(req, 2 * 1024 * 1024);
-  if (!body.length) return {};
-  return JSON.parse(body.toString("utf8"));
+  req.__jsonBody = body.length ? JSON.parse(body.toString("utf8")) : {};
+  return req.__jsonBody;
 }
 
 function parseCookies(req) {
