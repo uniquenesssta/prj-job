@@ -1,6 +1,27 @@
+function loadOptionalAsset(tagName, attributes) {
+  return new Promise((resolve, reject) => {
+    const selector = attributes.src ? `${tagName}[src="${attributes.src}"]` : `${tagName}[href="${attributes.href}"]`;
+    if (document.querySelector(selector)) {
+      resolve();
+      return;
+    }
+    const element = document.createElement(tagName);
+    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+    element.addEventListener("load", resolve, { once: true });
+    element.addEventListener("error", reject, { once: true });
+    document.head.appendChild(element);
+  });
+}
+
+async function loadAccountDisableTransferAssets() {
+  await loadOptionalAsset("link", { rel: "stylesheet", href: "css/account-disable-transfer.css" });
+  await loadOptionalAsset("script", { src: "js/components/account-disable-transfer-modal.js" });
+}
+
 async function boot() {
   bindStaticEvents();
   try {
+    await loadAccountDisableTransferAssets();
     const me = await api("/api/me");
     state.user = me.user;
     await loadData();
