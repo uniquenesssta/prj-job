@@ -100,9 +100,12 @@ function renderInlineInfo(task) {
   const editable = canEditBrief(task);
   const allowedStatuses = allowedStatusOptions(task);
   const statusEditable = allowedStatuses.some((status) => status !== task.status);
+  const currentAssignee = state.users.find((user) => user.id === task.assigneeId);
+  const designerOptions = state.users.filter((user) => user.role === "designer");
   const designers = task.visibility === "private" && state.user.role !== "owner"
     ? state.users.filter((user) => user.id === state.user.id)
-    : state.users.filter((user) => user.role === "designer");
+    : designerOptions.slice();
+  if (currentAssignee && !designers.some((user) => user.id === currentAssignee.id)) designers.unshift(currentAssignee);
   const readonly = (label, value) => `<div class="info-tile"><span>${label}</span><strong>${escapeHtml(value || "未填写")}</strong></div>`;
   const inputTile = (field, label, value) => canEditTaskField(task, field)
     ? `<label class="info-tile"><span>${label}</span><input name="${field}" value="${escapeAttr(value || "")}" /></label>`

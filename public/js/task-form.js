@@ -1,7 +1,10 @@
-function renderTaskForm() {
-  const designers = state.users.filter((user) => user.role === "designer");
+function renderTaskForm(options = {}) {
+  if (options.mode === "private") return renderPersonalTaskForm({ formId: "taskForm", messageId: "taskMessage" });
+  const designers = state.users.filter((user) => user.role === "designer" && !user.disabledAt && !user.deletedAt);
+  const noDesigner = designers.length === 0;
   return `
     <form class="form" id="taskForm">
+      <input name="visibility" type="hidden" value="public" />
       <label><span>任务名称</span><input name="title" required placeholder="例如：详情页主图精修" /></label>
       <label><span>任务说明</span><textarea name="description" rows="4" placeholder="尺寸、风格、文案、参考图、交付格式"></textarea></label>
       <div class="form-grid">
@@ -42,7 +45,9 @@ function renderTaskForm() {
       <div class="form-grid">
         <label>
           <span>设计师</span>
-          <select name="assigneeId" required>${designers.map((user) => `<option value="${user.id}">${escapeHtml(user.name)}</option>`).join("")}</select>
+          <select name="assigneeId" required ${noDesigner ? "disabled" : ""}>
+            ${noDesigner ? '<option value="">暂无可用设计师</option>' : designers.map((user) => `<option value="${user.id}">${escapeHtml(user.name)}</option>`).join("")}
+          </select>
         </label>
         <label>
           <span>优先级</span>
@@ -55,8 +60,35 @@ function renderTaskForm() {
         </label>
       </div>
       <label><span>截止日期</span><input name="dueDate" type="date" /></label>
-      <button type="submit">创建并派单</button>
-      <p class="message" id="taskMessage"></p>
+      <button type="submit" ${noDesigner ? "disabled" : ""}>创建并派单</button>
+      <p class="message" id="taskMessage">${noDesigner ? "请先创建或启用设计师账号。" : ""}</p>
+    </form>
+  `;
+}
+
+function renderPersonalTaskForm(options = {}) {
+  const formId = options.formId || "personalTaskForm";
+  const messageId = options.messageId || "personalTaskMessage";
+  return `
+    <form class="form" id="${formId}">
+      <input name="visibility" type="hidden" value="private" />
+      <label><span>任务名称</span><input name="title" required placeholder="例如：整理素材、练习版式、内部优化" /></label>
+      <label><span>任务说明</span><textarea name="description" rows="4" placeholder="写清楚自己要做什么"></textarea></label>
+      <div class="form-grid">
+        <label>
+          <span>优先级</span>
+          <select name="priority">
+            <option value="normal">普通</option>
+            <option value="high">重要</option>
+            <option value="urgent">加急</option>
+            <option value="low">低</option>
+          </select>
+        </label>
+        <label><span>截止日期</span><input name="dueDate" type="date" /></label>
+      </div>
+      <label><span>备注</span><textarea name="remark" rows="3" placeholder="记录想法、检查点或内部说明"></textarea></label>
+      <button type="submit">创建个人任务</button>
+      <p class="message" id="${messageId}"></p>
     </form>
   `;
 }
@@ -73,25 +105,7 @@ function renderPersonalTaskModal() {
           </div>
           <button class="button secondary" id="closePersonalTaskModal" type="button">关闭</button>
         </div>
-        <form class="form" id="personalTaskForm">
-          <label><span>任务名称</span><input name="title" required placeholder="例如：整理素材、练习版式、内部优化" /></label>
-          <label><span>任务说明</span><textarea name="description" rows="4" placeholder="写清楚自己要做什么"></textarea></label>
-          <div class="form-grid">
-            <label>
-              <span>优先级</span>
-              <select name="priority">
-                <option value="normal">普通</option>
-                <option value="high">重要</option>
-                <option value="urgent">加急</option>
-                <option value="low">低</option>
-              </select>
-            </label>
-            <label><span>截止日期</span><input name="dueDate" type="date" /></label>
-          </div>
-          <label><span>备注</span><textarea name="remark" rows="3" placeholder="记录想法、检查点或内部说明"></textarea></label>
-          <button type="submit">创建个人任务</button>
-          <p class="message" id="personalTaskMessage"></p>
-        </form>
+        ${renderPersonalTaskForm()}
       </section>
     </div>
   `;
@@ -105,11 +119,12 @@ function bindTaskForm(options = {}) {
     const message = document.querySelector("#taskMessage");
     message.textContent = "";
     try {
-      await api("/api/tasks", { method: "POST", body: Object.fromEntries(new FormData(form).entries()) });
+      const body = Object.fromEntries(new FormData(form).entries());
+      await api("/api/tasks", { method: "POST", body });
       form.reset();
       message.style.color = "#2f9563";
-      message.textContent = "任务已创建并派给设计师。";
-      if (typeof options.afterSuccess === "function") options.afterSuccess();
+      message.textContent = body.visibility === "private" ? "个人任务已创建。" : "任务已创建并派给设计师。";
+      if (typeof options.afterSuccess === "function") options.afterSuccess(body);
       await loadData();
       render();
     } catch (error) {

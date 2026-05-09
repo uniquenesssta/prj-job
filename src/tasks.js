@@ -77,18 +77,25 @@ function handleGetTasks(req, res) {
 async function handleCreateTask(req, res) {
   const user = requireUser(req, res);
   if (!user) return;
-  const isPrivateDesignerTask = user.role === "designer";
-  if (isPrivateDesignerTask ? !canCreatePersonalTask(user) : !canCreatePublicTask(user)) {
+  const body = await readJson(req);
+  const visibility = body.visibility === "private" ? "private" : "public";
+  const isPrivateTask = visibility === "private";
+  if (isPrivateTask ? !canCreatePersonalTask(user) : !canCreatePublicTask(user)) {
     sendError(res, 403, "当前账号不能新建任务");
     return;
   }
-  const body = await readJson(req);
   const db = readDb();
   const comments = readComments();
-  const assigneeId = isPrivateDesignerTask ? user.id : body.assigneeId;
-  const assignee = db.users.find((item) => item.id === assigneeId && item.role === "designer" && !item.disabledAt && !item.deletedAt);
-  if (!String(body.title || "").trim() || !assignee) {
-    sendError(res, 400, "请填写任务标题并选择有效设计师");
+  const assigneeId = isPrivateTask ? user.id : body.assigneeId;
+  const assignee = isPrivateTask
+    ? db.users.find((item) => item.id === assigneeId && !item.disabledAt && !item.deletedAt)
+    : db.users.find((item) => item.id === assigneeId && item.role === "designer" && !item.disabledAt && !item.deletedAt);
+  if (!String(body.title || "").trim()) {
+    sendError(res, 400, "请填写任务标题");
+    return;
+  }
+  if (!assignee) {
+    sendError(res, 400, isPrivateTask ? "当前账号不能创建个人任务" : "请选择有效设计师");
     return;
   }
   const now = new Date().toISOString();
@@ -105,7 +112,7 @@ async function handleCreateTask(req, res) {
     customerRequirement: String(body.customerRequirement || "").trim(),
     remark: String(body.remark || "").trim(),
     remarkRecords: [],
-    visibility: isPrivateDesignerTask ? "private" : "public",
+    visibility,
     creatorId: user.id,
     assigneeId: assignee.id,
     priority: ["low", "normal", "high", "urgent"].includes(body.priority) ? body.priority : "normal",

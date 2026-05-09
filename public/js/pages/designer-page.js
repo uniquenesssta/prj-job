@@ -9,7 +9,6 @@ function renderDesignerPage() {
           <h2>任务池</h2>
         </div>
         <div class="section-actions">
-          ${state.user.role === "designer" ? '<button class="button" id="openPersonalTaskModal" type="button">新增个人任务</button>' : ""}
           <button class="button secondary" id="refreshTasks" type="button">刷新</button>
         </div>
       </div>
@@ -22,7 +21,6 @@ function renderDesignerPage() {
       ${state.user.role === "designer" ? renderGroupedTaskList(tasks) : renderTaskList(tasks)}
     </section>
     <aside class="detail-panel" id="detailPanel">${renderDetail()}</aside>
-    ${renderPersonalTaskModal()}
   `;
   bindTaskPageEvents();
   bindDesignerPageEvents();
@@ -36,37 +34,5 @@ function bindDesignerPageEvents() {
     state.selectedTaskId = null;
     state.pendingRemarkImages = [];
     render();
-  });
-
-  document.querySelector("#openPersonalTaskModal")?.addEventListener("click", () => {
-    state.personalTaskModalOpen = true;
-    render();
-  });
-
-  document.querySelector("#closePersonalTaskModal")?.addEventListener("click", () => {
-    state.personalTaskModalOpen = false;
-    render();
-  });
-
-  document.querySelector("#personalTaskBackdrop")?.addEventListener("click", (event) => {
-    if (event.target.id !== "personalTaskBackdrop") return;
-    state.personalTaskModalOpen = false;
-    render();
-  });
-
-  document.querySelector("#personalTaskForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const message = document.querySelector("#personalTaskMessage");
-    message.textContent = "";
-    try {
-      await api("/api/tasks", { method: "POST", body: Object.fromEntries(new FormData(event.currentTarget).entries()) });
-      state.personalTaskModalOpen = false;
-      state.designerView = "private";
-      await loadData();
-      render();
-    } catch (error) {
-      message.style.color = "#cf4d40";
-      message.textContent = error.message;
-    }
   });
 }
